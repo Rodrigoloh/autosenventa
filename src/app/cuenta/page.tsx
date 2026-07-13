@@ -1,0 +1,2 @@
+import { requireUser } from "@/lib/auth";
+export default async function AccountPage() { const viewer = await requireUser(); return <><p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Cuenta</p><h1 className="mt-3 text-4xl font-black tracking-tight">Hola{viewer.display_name ? `, ${viewer.display_name}` : ""}</h1><p className="mt-4 text-stone-600">Desde aquí podrás administrar tus publicaciones.</p></>; }
