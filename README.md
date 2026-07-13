@@ -32,6 +32,29 @@ select public.set_user_role('<USER_UUID>', 'staff');
 
 Un cliente normal o staff recibe error al llamar ese RPC. No uses service role en el navegador.
 
+## Entornos
+
+- `.env.local`: desarrollo manual de Next.js; sólo URL, publishable key y URL del sitio.
+- `.env.test`: secretos locales de la suite, ignorados por Git. Se obtiene con `npx supabase status --output env` y nunca se copia al navegador.
+- staging: archivo fuera de Git seleccionado con `E2E_ENV_FILE`; exige `E2E_TARGET=staging`, refs distintas de staging/producción y credenciales propias.
+- producción: nunca se usa para pruebas destructivas. Las URLs/ref conocidas se declaran como guardas, no como objetivo.
+
+La suite se niega a iniciar sin `ALLOW_DESTRUCTIVE_E2E=true`, bloquea coincidencias con URLs de producción y valida que el hostname remoto corresponda a `E2E_STAGING_PROJECT_REF`. La service role y la conexión DB se usan sólo desde el proceso Node de setup/cleanup; jamás son `NEXT_PUBLIC_*`.
+
+## Playwright, HTTP y Storage
+
+Prepara `.env.test` a partir de `.env.example`, inicia Supabase y ejecuta:
+
+```bash
+npx supabase start
+npx playwright install chromium
+npm run test:e2e
+```
+
+`npm run test:e2e` construye y sirve Next.js en la URL indicada. `e2e/auth.spec.ts` recorre registro, confirmación PKCE, login, guards, logout y recuperación; Mailpit se abre en `http://127.0.0.1:55324`. `e2e/http-authorization.spec.ts` usa sesiones reales distintas contra PostgREST. `e2e/storage.spec.ts` carga un PNG real y prueba lectura, overwrite, path ajeno, MIME y tamaño. Todos usan identificadores únicos y limpian sus datos.
+
+Si Chromium administrado no puede descargarse y existe Chrome local, define `E2E_BROWSER_CHANNEL=chrome`. Mailpit sólo prueba entrega local, no SMTP remoto.
+
 ## Aplicación y checks
 
 ```bash
@@ -40,7 +63,8 @@ npm run dev
 npm run lint
 npm run typecheck
 npm test
+npm run test:e2e
 npm run build
 ```
 
-Mailpit permite revisar confirmaciones/resets locales en `http://127.0.0.1:55324`. Consulta `docs/ARCHITECTURE.md`, `docs/SECURITY_AUDIT.md` y `docs/STATUS.md`.
+La preparación remota reproducible y su limpieza están en `docs/STAGING.md`. Consulta también `docs/ARCHITECTURE.md`, `docs/SECURITY_AUDIT.md` y `docs/STATUS.md`.

@@ -29,6 +29,12 @@ RLS separa políticas `anon` y `authenticated`. Público lee taxonomía activa, 
 
 Storage acepta JPEG, PNG, WebP, MP4 y WebM hasta 50 MiB. El path obligatorio es `<listing_uuid>/<random_uuid>.<ext>`; tanto la política de objetos como un constraint de `listing_media` verifican la relación con el anuncio. Nunca se usa el nombre original como control de acceso.
 
+## Capas de prueba reales
+
+pgTAP comprueba el núcleo SQL. Playwright añade tres superficies: navegador/Server Actions/Auth PKCE, clientes autenticados distintos contra PostgREST/RPC, y bytes reales contra Storage API. El setup usa Auth Admin y una conexión DB privilegiada para cuentas/rol staff efímeros; esas credenciales viven sólo en Node. Los clientes que ejercen políticas usan exclusivamente publishable key más su sesión.
+
+Playwright carga un archivo de entorno explícito, construye Next.js con esas variables y, salvo `E2E_START_APP=false`, sirve el build. El target sólo puede ser `local` o `staging`; staging requiere refs declarados distintos. `ALLOW_DESTRUCTIVE_E2E=true` es condición previa a cualquier creación/limpieza.
+
 ## Baseline
 
-La migración `202607120001` se conserva sin reescritura destructiva porque forma el baseline documentado. Los hallazgos se corrigen en migraciones `002`–`005`. El seed sólo contiene taxonomía idempotente, sin usuarios ni credenciales.
+La migración `202607120001` se conserva sin reescritura destructiva porque forma el baseline documentado. Los hallazgos se corrigen en migraciones `002`–`007`: timestamps reservados y grants explícitos de `service_role` se añadieron al comprobar interfaces HTTP. El seed sólo contiene taxonomía idempotente, sin usuarios ni credenciales.

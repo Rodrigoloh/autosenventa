@@ -15,6 +15,12 @@ export async function signIn(formData: FormData) {
   redirect("/cuenta");
 }
 
+export async function signOut() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/login?signedOut=1");
+}
+
 export async function signUp(formData: FormData) {
   const parsed = credentialsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect("/registro?error=invalid");
