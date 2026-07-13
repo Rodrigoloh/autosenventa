@@ -1,20 +1,21 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { AppRole } from "@/lib/constants";
+import { hasRequiredRole, resolveViewer } from "@/lib/auth-policy";
 import { createClient } from "@/lib/supabase/server";
 
 export const getViewer = cache(async () => {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
-  if (error || !data?.claims.sub) return null;
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return null;
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, role, display_name")
-    .eq("id", data.claims.sub)
+    .eq("id", data.user.id)
     .single();
 
-  return profile as { id: string; role: AppRole; display_name: string | null } | null;
+  return resolveViewer(profile);
 });
 
 export async function requireUser() {
@@ -25,7 +26,7 @@ export async function requireUser() {
 
 export async function requireRole(roles: AppRole[]) {
   const viewer = await requireUser();
-  if (!roles.includes(viewer.role)) redirect("/cuenta");
+  if (!hasRequiredRole(viewer, roles)) redirect("/cuenta");
   return viewer;
 }
 

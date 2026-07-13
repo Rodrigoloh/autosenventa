@@ -1,27 +1,34 @@
 # Arquitectura
 
-## Stack
+## Stack y sesión
 
-- Next.js 16 con App Router, React 19 y TypeScript estricto.
-- Tailwind CSS 4; `components.json` deja configurado shadcn/ui para componentes futuros.
-- Supabase (`@supabase/ssr`) para Auth, Postgres y Storage.
-- Zod para validar entorno y entradas de acciones de servidor.
+Next.js 16/App Router, React 19, TypeScript estricto, Tailwind 4, Supabase SSR y Zod. El navegador recibe sólo URL y publishable key. El cliente servidor usa cookies; `proxy.ts` renueva sesión mediante `getUser()`. `getViewer()` vuelve a validar el usuario con Auth, consulta el rol en `profiles` y rechaza perfiles inexistentes o roles fuera del enum.
 
-## Límites de confianza
+`/cuenta` exige usuario. Cada ruta `/staff` vuelve a exigir `staff|admin` en servidor además del layout; `/staff/usuarios` exige `admin`. RLS sigue siendo la autoridad final. Ni navegación, middleware ni claims enviados por el navegador asignan roles.
 
-El navegador usa exclusivamente la publishable key. `src/lib/supabase/server.ts` crea el cliente SSR con cookies, mientras `src/proxy.ts` renueva la sesión. No existe ni debe añadirse una service role key al bundle web.
+Confirmación y recuperación intercambian PKCE en `/auth/callback`. `safeInternalPath` impide redirects externos. Recuperación termina en `/actualizar-password`; las URLs se construyen desde `NEXT_PUBLIC_SITE_URL` validada.
 
-Los layouts `/cuenta` y `/staff` comprueban sesión y rol en servidor. Las comprobaciones visuales sólo mejoran navegación; la autorización efectiva vive también en RLS. `assertOwnsResource` debe usarse en futuras acciones sobre anuncios individuales.
+## Inventario de datos
 
-## Datos y estados
+Enums: `app_role` (`user`, `staff`, `admin`) y `listing_status` (`draft`, `submitted`, `in_review`, `changes_requested`, `approved`, `published`, `rejected`, `archived`).
 
-La migración inicial define perfiles, taxonomía, anuncios, medios, notas privadas e historial. El estado sólo cambia a través de `transition_listing`; un trigger rechaza cambios directos y también hace inmutable `owner_id`. Cada transición registra actor y fecha. `set_user_role` exige rol `admin` dentro de Postgres.
+Tablas: `profiles`, `categories`, `brands`, `models`, `listings`, `listing_media`, `listing_status_history`, `staff_notes`. Bucket privado: `listing-media`.
 
-Todas las tablas tienen RLS habilitado. Los visitantes sólo leen anuncios `published`; propietarios leen los suyos y sólo editan `draft`/`changes_requested`; staff accede a revisión. El bucket privado `listing-media` replica esas reglas y exige rutas con el UUID del anuncio como primer segmento.
+Funciones: `current_role`, `is_staff`, `handle_new_user`, `transition_listing`, `guard_listing_status`, `guard_profile_role`, `set_user_role`. Las funciones `SECURITY DEFINER` fijan `search_path=''`; se revocó ejecución implícita de `PUBLIC` y sólo los RPC necesarios se conceden a `authenticated`.
 
-## Decisiones de alcance
+Triggers: `on_auth_user_created` crea el perfil con rol por defecto de base (ignora un rol en metadata); `guard_profile_sensitive_fields` protege ID/rol; `guard_listing_sensitive_fields` hace inmutables propietario/estado directo y reserva campos editoriales.
 
-- No hay datos semilla ni mock en producción.
-- Las rutas dinámicas sin datos devuelven 404 y los listados muestran estados vacíos reales.
-- El formulario de anuncios, catálogo consultable y acciones editoriales se reservan para la siguiente fase.
-- La validación de entorno es diferida: CI puede compilar sin secretos, pero cualquier petición que use Supabase falla con un mensaje explícito si falta `.env.local`.
+## Estados y autorización
+
+- Propietario: `draft|changes_requested -> submitted`.
+- Staff/admin: `submitted -> in_review`; `in_review -> changes_requested|approved|rejected`; `approved -> published`; `published -> approved`; cualquier estado no archivado `-> archived`.
+- Cada transición válida inserta actor y fecha en `listing_status_history`; no existen políticas de insert/update/delete para clientes sobre historial.
+- `set_user_role` sólo actúa cuando el rol persistido del actor es `admin`.
+
+RLS separa políticas `anon` y `authenticated`. Público lee taxonomía activa, anuncios publicados y medios vinculados a publicaciones. Propietarios leen sus recursos y editan sólo borradores/cambios solicitados. Staff lee revisión y administra taxonomía/notas. Los grants de Data API son mínimos y RLS decide cada fila.
+
+Storage acepta JPEG, PNG, WebP, MP4 y WebM hasta 50 MiB. El path obligatorio es `<listing_uuid>/<random_uuid>.<ext>`; tanto la política de objetos como un constraint de `listing_media` verifican la relación con el anuncio. Nunca se usa el nombre original como control de acceso.
+
+## Baseline
+
+La migración `202607120001` se conserva sin reescritura destructiva porque forma el baseline documentado. Los hallazgos se corrigen en migraciones `002`–`005`. El seed sólo contiene taxonomía idempotente, sin usuarios ni credenciales.

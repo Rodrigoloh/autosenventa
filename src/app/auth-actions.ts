@@ -1,13 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { getPublicEnv } from "@/lib/env";
+import { credentialsSchema, emailSchema } from "@/lib/auth-validation";
 
-const credentials = z.object({ email: z.email(), password: z.string().min(8) });
 
 export async function signIn(formData: FormData) {
-  const parsed = credentials.safeParse(Object.fromEntries(formData));
+  const parsed = credentialsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect("/login?error=invalid");
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
@@ -16,18 +16,25 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signUp(formData: FormData) {
-  const parsed = credentials.safeParse(Object.fromEntries(formData));
+  const parsed = credentialsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect("/registro?error=invalid");
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp(parsed.data);
+  const env = getPublicEnv();
+  const { error } = await supabase.auth.signUp({
+    ...parsed.data,
+    options: { emailRedirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/cuenta` },
+  });
   if (error) redirect("/registro?error=signup");
   redirect("/login?registered=1");
 }
 
 export async function resetPassword(formData: FormData) {
-  const parsed = z.object({ email: z.email() }).safeParse(Object.fromEntries(formData));
+  const parsed = emailSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect("/recuperar-password?error=invalid");
   const supabase = await createClient();
-  await supabase.auth.resetPasswordForEmail(parsed.data.email);
+  const env = getPublicEnv();
+  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/actualizar-password`,
+  });
   redirect("/login?reset=sent");
 }

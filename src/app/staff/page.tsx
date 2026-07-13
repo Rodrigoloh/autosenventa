@@ -1,1 +1,2 @@
-export default function StaffPage() { return <><p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Panel editorial</p><h1 className="mt-3 text-4xl font-black tracking-tight">Resumen</h1><p className="mt-4 text-stone-600">La cola de revisión aparecerá cuando existan anuncios enviados.</p></>; }
+import { requireRole } from "@/lib/auth";
+export default async function StaffPage() { await requireRole(["staff", "admin"]); return <><p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Panel editorial</p><h1 className="mt-3 text-4xl font-black tracking-tight">Resumen</h1><p className="mt-4 text-stone-600">La cola de revisión aparecerá cuando existan anuncios enviados.</p></>; }
