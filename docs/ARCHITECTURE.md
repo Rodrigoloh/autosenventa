@@ -14,6 +14,8 @@ Enums: `app_role` (`user`, `staff`, `admin`) y `listing_status` (`draft`, `submi
 
 Tablas: `profiles`, `categories`, `brands`, `models`, `listings`, `listing_media`, `listing_status_history`, `staff_notes`. Bucket privado: `listing-media`.
 
+`listings` separa los campos del propietario (taxonomía, año, variante, ubicación, precio, kilometraje, colores, configuración mecánica y seis textos de historia) de `slug`, `listing_type`, `editorial_description`, Featured y fechas reservadas. La migración `202607130001` amplía el esquema sin reescribir el baseline. Una FK `(model_id, brand_id)`, un trigger de taxonomía activa y el título derivado aportan defensa en profundidad además de Zod y Server Actions.
+
 Funciones: `current_role`, `is_staff`, `handle_new_user`, `transition_listing`, `guard_listing_status`, `guard_profile_role`, `set_user_role`. Las funciones `SECURITY DEFINER` fijan `search_path=''`; se revocó ejecución implícita de `PUBLIC` y sólo los RPC necesarios se conceden a `authenticated`.
 
 Triggers: `on_auth_user_created` crea el perfil con rol por defecto de base (ignora un rol en metadata); `guard_profile_sensitive_fields` protege ID/rol; `guard_listing_sensitive_fields` hace inmutables propietario/estado directo y reserva campos editoriales.
@@ -25,6 +27,14 @@ Triggers: `on_auth_user_created` crea el perfil con rol por defecto de base (ign
 - Cada transición válida inserta actor y fecha en `listing_status_history`; no existen políticas de insert/update/delete para clientes sobre historial.
 - `set_user_role` sólo actúa cuando el rol persistido del actor es `admin`.
 
+## Flujo privado del propietario
+
+- `/cuenta/anuncios` consulta explícitamente `owner_id = viewer.id`, incluso si la sesión tiene rol staff/admin, y presenta avance calculado sobre campos reales.
+- `/cuenta/anuncios/nuevo` usa una Server Action; `owner_id` procede exclusivamente de `requireUser()` y el botón pendiente evita envíos repetidos desde la interfaz.
+- `/cuenta/anuncios/[id]/editar` exige UUID, propietario y `draft|changes_requested`. La acción repite esas comprobaciones inmediatamente antes del update y sólo escribe el resultado de `listingDraftSchema`.
+- `/cuenta/anuncios/[id]/vista-previa` selecciona únicamente campos del propietario, exige propiedad y hereda `noindex,nofollow` del layout de cuenta.
+- El cambio de marca limpia un modelo incompatible en cliente; servidor y base vuelven a comprobar la relación. Guardar no cambia el estado ni sobrescribe columnas fuera del formulario.
+
 RLS separa políticas `anon` y `authenticated`. Público lee taxonomía activa, anuncios publicados y medios vinculados a publicaciones. Propietarios leen sus recursos y editan sólo borradores/cambios solicitados. Staff lee revisión y administra taxonomía/notas. Los grants de Data API son mínimos y RLS decide cada fila.
 
 Storage acepta JPEG, PNG, WebP, MP4 y WebM hasta 50 MiB. El path obligatorio es `<listing_uuid>/<random_uuid>.<ext>`; tanto la política de objetos como un constraint de `listing_media` verifican la relación con el anuncio. Nunca se usa el nombre original como control de acceso.
@@ -35,6 +45,8 @@ pgTAP comprueba el núcleo SQL. Playwright añade tres superficies: navegador/Se
 
 Playwright carga un archivo de entorno explícito, construye Next.js con esas variables y, salvo `E2E_START_APP=false`, sirve el build. El target sólo puede ser `local` o `staging`; staging requiere refs declarados distintos. `ALLOW_DESTRUCTIVE_E2E=true` es condición previa a cualquier creación/limpieza.
 
+Las pruebas de borradores añaden validación unitaria de payload/título/avance, pgTAP para constraints y triggers, PostgREST multiusuario para RLS y campos reservados, y un recorrido Playwright de sesión completo. El runner privilegiado sólo prepara y limpia fixtures; las operaciones bajo prueba usan sesión normal.
+
 ## Baseline
 
-La migración `202607120001` se conserva sin reescritura destructiva porque forma el baseline documentado. Los hallazgos se corrigen en migraciones `002`–`007`: timestamps reservados y grants explícitos de `service_role` se añadieron al comprobar interfaces HTTP. El seed sólo contiene taxonomía idempotente, sin usuarios ni credenciales.
+La migración `202607120001` se conserva sin reescritura destructiva porque forma el baseline documentado. Los hallazgos se corrigen en migraciones `002`–`007`; la fase de borradores se agrega en `202607130001`. Timestamps reservados y grants explícitos de `service_role` se añadieron al comprobar interfaces HTTP. El seed sólo contiene taxonomía idempotente, sin usuarios ni credenciales.

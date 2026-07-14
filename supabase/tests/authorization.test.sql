@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(39);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
 ('11111111-1111-4111-8111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'user1@example.test', 'not-a-real-password', now(), '{}', '{"role":"admin"}', now(), now()),
@@ -73,6 +73,43 @@ select ok((select file_size_limit=52428800 and allowed_mime_types @> array['imag
 set local role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 select throws_ok($$insert into storage.objects(bucket_id,name) values('listing-media','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/foto-original.jpg')$$, '42501', null, '26 path exige UUID aleatorio, no nombre original');
+
+select lives_ok($$
+  update public.listings set
+    year=2016,
+    brand_id=(select id from public.brands where slug='mazda'),
+    model_id=(select m.id from public.models m join public.brands b on b.id=m.brand_id where b.slug='mazda' and m.slug='mx-5'),
+    variant='Grand Touring', price_mxn=420000, mileage_km=55000,
+    owner_description='Historia real', ownership_history='Dos propietarios', maintenance_history='Servicios al día'
+  where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+$$, '30 propietario guarda datos permitidos del borrador');
+select is((select title from public.listings where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'), '2016 Mazda MX-5 Grand Touring', '31 titulo provisional se deriva en base');
+select throws_ok($$
+  update public.listings set
+    brand_id=(select id from public.brands where slug='ford'),
+    model_id=(select m.id from public.models m join public.brands b on b.id=m.brand_id where b.slug='mazda' and m.slug='mx-5')
+  where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+$$, 'P0001', 'Model must be active and belong to brand', '32 marca y modelo incompatibles fallan');
+select throws_ok($$update public.listings set price_mxn=-1 where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$$, '23514', null, '33 precio negativo falla');
+select throws_ok($$update public.listings set mileage_km=-1 where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$$, '23514', null, '34 kilometraje negativo falla');
+
+reset role;
+insert into public.categories(name,slug,active) values('Inactiva test','inactiva-test',false);
+insert into public.brands(name,slug,active) values('Inactiva test','inactiva-test',false);
+insert into public.brands(name,slug,active) values('Activa test','activa-test',true);
+insert into public.models(brand_id,name,slug,active)
+select id,'Inactivo test','inactivo-test',false from public.brands where slug='activa-test';
+select set_config('app.test_inactive_category', (select id::text from public.categories where slug='inactiva-test'), false);
+select set_config('app.test_inactive_brand', (select id::text from public.brands where slug='inactiva-test'), false);
+select set_config('app.test_active_brand', (select id::text from public.brands where slug='activa-test'), false);
+select set_config('app.test_inactive_model', (select id::text from public.models where slug='inactivo-test'), false);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select throws_ok($$update public.listings set category_id=current_setting('app.test_inactive_category')::bigint where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$$, 'P0001', 'Category must be active', '35 categoria inactiva falla');
+select throws_ok($$update public.listings set brand_id=current_setting('app.test_inactive_brand')::bigint, model_id=null where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$$, 'P0001', 'Brand must be active', '36 marca inactiva falla');
+select throws_ok($$update public.listings set brand_id=current_setting('app.test_active_brand')::bigint, model_id=current_setting('app.test_inactive_model')::bigint where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$$, 'P0001', 'Model must be active and belong to brand', '37 modelo inactivo falla');
+select is((select status::text from public.listings where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'), 'draft', '38 guardar no modifica estado');
+select is_empty($$update public.listings set variant='No permitido' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' returning id$$, '39 anuncio no editable rechaza actualizacion del propietario');
 
 select * from finish();
 rollback;

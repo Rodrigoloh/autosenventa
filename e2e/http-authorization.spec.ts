@@ -7,10 +7,12 @@ test.describe.configure({ mode: "serial" });
 test.describe("Autorización real por Data API", () => {
   const admin = adminClient();
   const userIds: string[] = [];
+  const taxonomyCleanup: Array<{ table: "categories" | "brands"; id: number }> = [];
   let listingId = "";
 
   test.afterAll(async () => {
     if (listingId) await admin.from("listings").delete().eq("id", listingId);
+    for (const item of taxonomyCleanup.reverse()) await admin.from(item.table).delete().eq("id", item.id);
     await deleteUsers(admin, userIds.reverse());
   });
 
@@ -43,6 +45,8 @@ test.describe("Autorización real por Data API", () => {
       { is_featured: true },
       { featured_order: 1 },
       { editorial_description: "No permitido" },
+      { slug: "slug-controlado-por-usuario" },
+      { listing_type: "clasificacion-editorial" },
       { published_at: new Date().toISOString() },
       { created_at: "2000-01-01T00:00:00Z" },
       { updated_at: "2000-01-01T00:00:00Z" },
@@ -51,6 +55,28 @@ test.describe("Autorización real por Data API", () => {
       const result = await clientA.from("listings").update(values).eq("id", listingId).select();
       expect(result.error, JSON.stringify(values)).toBeTruthy();
     }
+
+    const { data: mazda } = await clientA.from("brands").select("id").eq("slug", "mazda").single();
+    const { data: ford } = await clientA.from("brands").select("id").eq("slug", "ford").single();
+    const { data: mx5 } = await clientA.from("models").select("id").eq("brand_id", mazda!.id).eq("slug", "mx-5").single();
+    const validDraft = await clientA.from("listings").update({
+      brand_id: mazda!.id, model_id: mx5!.id, year: 2016, variant: "Grand Touring",
+      price_mxn: 420000, mileage_km: 55000, owner_description: "Conservado por su propietario",
+    }).eq("id", listingId).select("title, owner_id, status, price_mxn, mileage_km").single();
+    expect(validDraft.error).toBeNull();
+    expect(validDraft.data).toMatchObject({
+      title: "2016 Mazda MX-5 Grand Touring", owner_id: userA.id, status: "draft", mileage_km: 55000,
+    });
+    expect((await clientA.from("listings").update({ brand_id: ford!.id, model_id: mx5!.id }).eq("id", listingId).select()).error).toBeTruthy();
+    expect((await clientA.from("listings").update({ price_mxn: -1 }).eq("id", listingId).select()).error).toBeTruthy();
+    expect((await clientA.from("listings").update({ mileage_km: -1 }).eq("id", listingId).select()).error).toBeTruthy();
+
+    const inactiveCategory = await admin.from("categories").insert({
+      name: `Inactiva ${crypto.randomUUID()}`, slug: `inactive-${crypto.randomUUID()}`, active: false,
+    }).select("id").single();
+    expect(inactiveCategory.error).toBeNull();
+    taxonomyCleanup.push({ table: "categories", id: inactiveCategory.data!.id });
+    expect((await clientA.from("listings").update({ category_id: inactiveCategory.data!.id }).eq("id", listingId).select()).error).toBeTruthy();
 
     const reservedRpc = await clientA.rpc("set_user_role", { target_user: userA.id, target_role: "admin" });
     expect(reservedRpc.error).toBeTruthy();

@@ -2,6 +2,16 @@
 
 Fundación comprobada de una plataforma curada de automóviles.
 
+## Borradores de anuncios
+
+Una sesión autenticada administra sus anuncios desde `/cuenta/anuncios`. “Crear anuncio” inserta un registro `draft` cuyo propietario se obtiene en servidor y redirige a `/cuenta/anuncios/[id]/editar`. El formulario permite guardar identificación, datos comerciales, especificaciones e historia del propietario; la vista `/cuenta/anuncios/[id]/vista-previa` es privada y no indexable.
+
+Sólo `draft` y `changes_requested` son editables. Cada lectura y escritura filtra de nuevo por el usuario autenticado y RLS conserva la autoridad final. El payload se construye con una lista cerrada: no admite propietario, estado, Featured, slug, edición de staff, fechas editoriales ni timestamps administrativos. El título provisional se deriva en base de datos de año, marca, modelo y variante.
+
+Las categorías, marcas y modelos provienen de las tablas activas. El navegador filtra modelos por marca para la experiencia de uso; Zod, la acción servidor, un trigger y una FK compuesta vuelven a validar taxonomía activa y pertenencia del modelo.
+
+Todavía no se incluyen imágenes, video, envío a revisión, edición de staff, publicación pública, catálogo, comentarios, ofertas ni pagos.
+
 ## Supabase local
 
 ```bash
@@ -51,7 +61,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-`npm run test:e2e` construye y sirve Next.js en la URL indicada. `e2e/auth.spec.ts` recorre registro, confirmación PKCE, login, guards, logout y recuperación; Mailpit se abre en `http://127.0.0.1:55324`. `e2e/http-authorization.spec.ts` usa sesiones reales distintas contra PostgREST. `e2e/storage.spec.ts` carga un PNG real y prueba lectura, overwrite, path ajeno, MIME y tamaño. Todos usan identificadores únicos y limpian sus datos.
+`npm run test:e2e` construye y sirve Next.js en la URL indicada. `e2e/auth.spec.ts` recorre registro, confirmación PKCE, login, guards, logout y recuperación; Mailpit se abre en `http://127.0.0.1:55324`. `e2e/listing-drafts.spec.ts` crea, guarda, recupera y previsualiza un borrador tras volver a iniciar sesión. `e2e/http-authorization.spec.ts` usa sesiones reales distintas contra PostgREST. `e2e/storage.spec.ts` carga un PNG real y prueba lectura, overwrite, path ajeno, MIME y tamaño. Todos usan identificadores únicos y limpian sus datos.
 
 Si Chromium administrado no puede descargarse y existe Chrome local, define `E2E_BROWSER_CHANNEL=chrome`. Mailpit sólo prueba entrega local, no SMTP remoto.
 

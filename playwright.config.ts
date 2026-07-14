@@ -60,7 +60,7 @@ export default defineConfig({
     command: `npm run build && npm run start -- --hostname ${parsedAppUrl.hostname} --port ${appPort}`,
     url: appUrl,
     reuseExistingServer: true,
-    timeout: 120_000,
+    timeout: 240_000,
     env: {
       NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.E2E_SUPABASE_PUBLISHABLE_KEY ?? "",
