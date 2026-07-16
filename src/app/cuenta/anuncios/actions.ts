@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import {
+  DELETABLE_LISTING_STATUSES,
   EDITABLE_LISTING_STATUSES,
   listingDraftFromFormData,
   type ListingActionState,
@@ -66,7 +67,7 @@ export async function saveListingAction(
   if (!current) {
     return { status: "error", message: "No encontramos un anuncio propio con ese identificador." };
   }
-  if (!EDITABLE_LISTING_STATUSES.includes(current.status)) {
+  if (!EDITABLE_LISTING_STATUSES.includes(current.status as (typeof EDITABLE_LISTING_STATUSES)[number])) {
     return { status: "error", message: "Este anuncio ya no se puede editar en su estado actual." };
   }
 
@@ -105,4 +106,55 @@ export async function saveListingAction(
   revalidatePath(`/cuenta/anuncios/${listingId}/editar`);
   revalidatePath(`/cuenta/anuncios/${listingId}/vista-previa`);
   return { status: "success", message: "Borrador guardado correctamente." };
+}
+
+export async function deleteDraftAction(
+  listingId: string,
+  _previousState: ListingActionState,
+  formData: FormData,
+): Promise<ListingActionState> {
+  const viewer = await requireUser();
+  if (!listingIdSchema.safeParse(listingId).success) {
+    return { status: "error", message: "El identificador del anuncio no es válido." };
+  }
+  if (formData.get("confirm_delete") !== "yes") {
+    return { status: "error", message: "Confirma explícitamente que quieres eliminar este borrador." };
+  }
+
+  const supabase = await createClient();
+  const { data: current } = await supabase
+    .from("listings")
+    .select("id, status")
+    .eq("id", listingId)
+    .eq("owner_id", viewer.id)
+    .maybeSingle();
+
+  if (!current) {
+    return { status: "error", message: "No encontramos un borrador propio con ese identificador." };
+  }
+  if (!DELETABLE_LISTING_STATUSES.includes(current.status as (typeof DELETABLE_LISTING_STATUSES)[number])) {
+    return { status: "error", message: "Este anuncio ya no se puede eliminar desde borradores." };
+  }
+
+  // La limpieza de archivos en Storage se resolverá en la fase de medios.
+  const { error: mediaError } = await supabase.from("listing_media").delete().eq("listing_id", listingId);
+  if (mediaError) {
+    return { status: "error", message: "No pudimos preparar los medios del borrador para eliminarlo." };
+  }
+
+  const { data: deleted, error } = await supabase
+    .from("listings")
+    .delete()
+    .eq("id", listingId)
+    .eq("owner_id", viewer.id)
+    .in("status", [...DELETABLE_LISTING_STATUSES])
+    .select("id");
+
+  if (error || deleted?.length !== 1) {
+    return { status: "error", message: "No pudimos eliminar el borrador. Recarga e inténtalo de nuevo." };
+  }
+
+  revalidatePath("/cuenta");
+  revalidatePath("/cuenta/anuncios");
+  redirect("/cuenta/anuncios");
 }

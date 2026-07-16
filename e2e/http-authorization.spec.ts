@@ -37,6 +37,7 @@ test.describe("Autorización real por Data API", () => {
 
     expect((await clientB.from("listings").select("id").eq("id", listingId)).data).toEqual([]);
     expect((await clientB.from("listings").update({ title: "Ajeno" }).eq("id", listingId).select()).data).toEqual([]);
+    expect((await clientB.from("listings").delete().eq("id", listingId).select()).data).toEqual([]);
     expect((await anonymousClient().from("listings").select("id").eq("id", listingId)).data).toEqual([]);
 
     const forbiddenUpdates: Array<Record<string, unknown>> = [
@@ -83,11 +84,18 @@ test.describe("Autorización real por Data API", () => {
 
     expect((await clientA.rpc("transition_listing", { target_id: listingId, target_status: "submitted" })).error).toBeNull();
     expect((await staffClient.from("listings").select("id, status").eq("id", listingId).single()).data?.status).toBe("submitted");
+    expect((await clientA.from("listings").delete().eq("id", listingId).select()).data).toEqual([]);
     expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "published" })).error).toBeTruthy();
     expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "in_review" })).error).toBeNull();
     expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "approved" })).error).toBeNull();
     expect((await anonymousClient().from("listings").select("id").eq("id", listingId)).data).toEqual([]);
     expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "published" })).error).toBeNull();
     expect((await anonymousClient().from("listings").select("id").eq("id", listingId)).data).toEqual([{ id: listingId }]);
+
+    const disposable = await clientA.from("listings").insert({ owner_id: userA.id, title: "Draft para borrar" }).select("id").single();
+    expect(disposable.error).toBeNull();
+    const disposableId = disposable.data!.id;
+    expect((await clientB.from("listings").delete().eq("id", disposableId).select()).data).toEqual([]);
+    expect((await clientA.from("listings").delete().eq("id", disposableId).select("id")).data).toEqual([{ id: disposableId }]);
   });
 });

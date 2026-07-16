@@ -4,7 +4,7 @@ import { accessDecision, resolveViewer, safeInternalPath } from "../src/lib/auth
 import { credentialsSchema, emailSchema } from "../src/lib/auth-validation";
 import { parsePublicEnv } from "../src/lib/env";
 import { listingCompletion } from "../src/lib/listing-display";
-import { listingDraftSchema, provisionalTitle } from "../src/lib/listing-validation";
+import { DELETABLE_LISTING_STATUSES, EDITABLE_LISTING_STATUSES, listingDraftSchema, provisionalTitle } from "../src/lib/listing-validation";
 
 const user = { id: "11111111-1111-4111-8111-111111111111", role: "user" as const, display_name: null };
 const staff = { ...user, role: "staff" as const };
@@ -80,4 +80,9 @@ test("genera título tolerante y calcula avance", () => {
   assert.equal(provisionalTitle({ brand: "Mazda" }), "Mazda");
   assert.equal(provisionalTitle({}), "Borrador sin identificar");
   assert.equal(listingCompletion({}), 0);
+});
+
+test("mantiene separados estados editables y eliminables", () => {
+  assert.deepEqual(EDITABLE_LISTING_STATUSES, ["draft", "changes_requested"]);
+  assert.deepEqual(DELETABLE_LISTING_STATUSES, ["draft"]);
 });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const EDITABLE_LISTING_STATUSES = ["draft", "changes_requested"] as const;
+export const DELETABLE_LISTING_STATUSES = ["draft"] as const;
 
 export const BODY_STYLES = ["Coupé", "Sedán", "Convertible", "Hatchback", "SUV", "Pickup", "Vagoneta", "Otro"] as const;
 export const TRANSMISSIONS = ["Manual", "Automática", "Automatizada", "CVT", "Otra"] as const;

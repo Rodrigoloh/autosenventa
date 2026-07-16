@@ -45,7 +45,16 @@ test.describe("Borrador de anuncio del propietario", () => {
     expect(created.data).toEqual({ owner_id: owner.id, status: "draft", is_featured: false, editorial_description: null });
     expect((await admin.from("listings").select("id").eq("owner_id", owner.id)).data).toHaveLength(1);
 
+    await expect(page.getByLabel("Categoría")).toContainText("Clásicos");
+    await expect(page.locator('select[name="brand_id"]')).toContainText("Mazda");
     await page.getByLabel("Categoría").selectOption({ label: "Clásicos" });
+    await page.locator('select[name="brand_id"]').selectOption({ label: "Mazda" });
+    await expect(page.locator('select[name="model_id"] option')).toHaveText(["Selecciona un modelo", "MX-5"]);
+    await page.locator('select[name="model_id"]').selectOption({ label: "MX-5" });
+    await page.locator('select[name="brand_id"]').selectOption({ label: "Ford" });
+    await expect(page.locator('select[name="model_id"]')).toHaveValue("");
+    await expect(page.getByText("El modelo se limpió porque no pertenece a la nueva marca.")).toBeVisible();
+    await expect(page.locator('select[name="model_id"] option')).toHaveText(["Selecciona un modelo", "Mustang"]);
     await page.locator('select[name="brand_id"]').selectOption({ label: "Mazda" });
     await page.locator('select[name="model_id"]').selectOption({ label: "MX-5" });
     await page.getByLabel("Variante").fill("Grand Touring");
@@ -100,5 +109,17 @@ test.describe("Borrador de anuncio del propietario", () => {
     await page.getByRole("link", { name: "Editar" }).click();
     await expect(page.getByLabel("Variante")).toHaveValue("Grand Touring");
     await expect(page.getByLabel("Motivo de venta")).toHaveValue("Cambio de proyecto.");
+    await expect(page.getByRole("button", { name: "Publicar" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Eliminar borrador" }).click();
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: "Confirma explícitamente que quieres eliminar este borrador.",
+      }),
+    ).toHaveText("Confirma explícitamente que quieres eliminar este borrador.");
+    await page.getByLabel("Confirmo que quiero eliminar este borrador.").check();
+    await page.getByRole("button", { name: "Eliminar borrador" }).click();
+    await expect(page).toHaveURL(/\/cuenta\/anuncios$/);
+    await expect(page.getByRole("heading", { name: "2016 Mazda MX-5 Grand Touring" })).toHaveCount(0);
+    expect((await admin.from("listings").select("id").eq("id", listingId)).data).toEqual([]);
   });
 });

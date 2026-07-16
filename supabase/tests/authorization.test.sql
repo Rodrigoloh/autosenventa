@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(45);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
 ('11111111-1111-4111-8111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'user1@example.test', 'not-a-real-password', now(), '{}', '{"role":"admin"}', now(), now()),
@@ -38,6 +38,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 select is((select count(*) from public.listings where id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'), 0::bigint, '10 usuario no lee borrador ajeno');
 select is_empty($$update public.listings set title='Manipulado' where id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' returning id$$, '11 usuario no edita anuncio ajeno');
+select is_empty($$delete from public.listings where id='cccccccc-cccc-4ccc-8ccc-cccccccccccc' returning id$$, '11b usuario no elimina anuncio ajeno');
 select throws_ok($$insert into public.listings(owner_id,title,status) values('11111111-1111-4111-8111-111111111111','Publicado falso','published')$$, '42501', null, '12 usuario no publica al insertar');
 select throws_ok($$update public.listings set is_featured=true where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, 'P0001', 'Reserved editorial fields cannot be changed', '13 usuario no activa featured');
 select throws_ok($$update public.listings set editorial_description='Editorial falsa' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, 'P0001', 'Reserved editorial fields cannot be changed', '14 usuario no edita campo editorial');
@@ -45,6 +46,20 @@ select throws_ok($$update public.listings set created_at='2000-01-01' where id='
 select throws_ok($$update public.listings set updated_at='2000-01-01' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, 'P0001', 'Reserved timestamps cannot be changed', 'usuario no altera updated_at');
 select throws_ok($$update public.listings set status='published' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, '42501', null, '15 update directo de estado falla');
 select lives_ok($$select public.transition_listing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','submitted')$$, 'usuario envia borrador');
+select is_empty($$delete from public.listings where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' returning id$$, '15b usuario no elimina enviado');
+
+reset role;
+insert into public.listings(id,owner_id,title) values('f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1','11111111-1111-4111-8111-111111111111','Borrador eliminable');
+insert into public.listing_media(id,listing_id,storage_path,media_type) values('f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2','f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1','f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1/f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2.jpg','image');
+insert into public.listing_status_history(listing_id,from_status,to_status,actor_id) values('f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1','draft','draft','11111111-1111-4111-8111-111111111111');
+insert into public.staff_notes(listing_id,author_id,body) values('f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1','33333333-3333-4333-8333-333333333333','Nota vinculada');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select lives_ok($$delete from public.listings where id='f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1'$$, '15c usuario elimina su draft');
+reset role;
+select is((select count(*) from public.listings where id='f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1'), 0::bigint, '15d draft eliminado desaparece');
+select is((select count(*) from public.listing_media where listing_id='f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1'), 0::bigint, '15e media relacional se elimina en cascada');
+select is((select count(*) from public.listing_status_history where listing_id='f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1') + (select count(*) from public.staff_notes where listing_id='f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1'), 0::bigint, '15f relaciones dependientes se eliminan en cascada');
 
 select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
 select is((select count(*) from public.listings where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 1::bigint, '17 staff lee anuncio enviado');
