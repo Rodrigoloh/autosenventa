@@ -18,7 +18,7 @@ test.describe("Storage binario real", () => {
     await deleteUsers(admin, userIds.reverse());
   });
 
-  test("propietario carga/lee y RLS rechaza acceso ajeno, MIME y tamaño inválidos", async () => {
+  test("reserva path de fotografía y RLS bloquea DML, paths ajenos, MIME y tamaño inválidos", async () => {
     test.setTimeout(150_000);
     const owner = await createConfirmedUser(admin, "storage-owner");
     const other = await createConfirmedUser(admin, "storage-other");
@@ -32,25 +32,42 @@ test.describe("Storage binario real", () => {
     const listing = await ownerClient.from("listings").insert({ owner_id: owner.id, title: "Storage HTTP E2E" }).select("id").single();
     expect(listing.error).toBeNull();
     listingId = listing.data!.id;
-    storagePath = `${listingId}/${crypto.randomUUID()}.png`;
     const base64 = (await readFile(join(process.cwd(), "e2e", "fixtures", "pixel.png.base64"), "utf8")).trim();
     const image = Buffer.from(base64, "base64");
 
+    const reservation = await ownerClient.rpc("reserve_listing_photo_upload", {
+      target_listing_id: listingId,
+      target_mime_type: "image/png",
+      target_size_bytes: image.length,
+      target_extension: "png",
+    }).single();
+    expect(reservation.error).toBeNull();
+    storagePath = (reservation.data as { storage_path: string }).storage_path;
+    expect(storagePath).toMatch(new RegExp(`^${listingId}/[0-9a-f-]{36}\\.png$`));
+
     expect((await ownerClient.storage.from("listing-media").upload(storagePath, image, { contentType: "image/png" })).error).toBeNull();
-    expect((await ownerClient.from("listing_media").insert({ listing_id: listingId, storage_path: storagePath, media_type: "image" })).error).toBeNull();
-    const ownerDownload = await ownerClient.storage.from("listing-media").download(storagePath);
-    expect(ownerDownload.error).toBeNull();
-    expect(Buffer.from(await ownerDownload.data!.arrayBuffer())).toEqual(image);
+    expect((await ownerClient.from("listing_media").insert({
+      listing_id: listingId, storage_path: storagePath, media_type: "image",
+      mime_type: "image/png", file_size_bytes: image.length, width: 1, height: 1,
+    })).error).toBeTruthy();
+    expect((await ownerClient.storage.from("listing-media").download(storagePath)).error).toBeTruthy();
 
     expect((await otherClient.storage.from("listing-media").download(storagePath)).error).toBeTruthy();
     expect((await otherClient.storage.from("listing-media").upload(storagePath, image, { contentType: "image/png", upsert: true })).error).toBeTruthy();
     const foreignPath = `${listingId}/${crypto.randomUUID()}.png`;
     expect((await otherClient.storage.from("listing-media").upload(foreignPath, image, { contentType: "image/png" })).error).toBeTruthy();
 
-    const invalidMimePath = `${listingId}/${crypto.randomUUID()}.jpg`;
-    expect((await ownerClient.storage.from("listing-media").upload(invalidMimePath, Buffer.from("not an image"), { contentType: "text/plain" })).error).toBeTruthy();
-    const oversizedPath = `${listingId}/${crypto.randomUUID()}.png`;
-    const oversized = Buffer.alloc(50 * 1024 * 1024 + 1);
-    expect((await ownerClient.storage.from("listing-media").upload(oversizedPath, oversized, { contentType: "image/png" })).error).toBeTruthy();
+    expect((await ownerClient.rpc("reserve_listing_photo_upload", {
+      target_listing_id: listingId,
+      target_mime_type: "text/plain",
+      target_size_bytes: 10,
+      target_extension: "jpg",
+    })).error).toBeTruthy();
+    expect((await ownerClient.rpc("reserve_listing_photo_upload", {
+      target_listing_id: listingId,
+      target_mime_type: "image/png",
+      target_size_bytes: 10 * 1024 * 1024 + 1,
+      target_extension: "png",
+    })).error).toBeTruthy();
   });
 });
