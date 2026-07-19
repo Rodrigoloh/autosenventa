@@ -1,0 +1,87 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { expect, test } from "@playwright/test";
+import { adminClient, createConfirmedUser, deleteUsers } from "./support";
+
+test.describe.configure({ mode: "serial" });
+
+test.describe("Fotografías privadas del borrador", () => {
+  const admin = adminClient();
+  const userIds: string[] = [];
+  let listingId = "";
+
+  test.afterAll(async () => {
+    if (listingId) {
+      const listed = await admin.storage.from("listing-media").list(listingId, { limit: 100 });
+      const paths = (listed.data ?? []).map((item) => `${listingId}/${item.name}`);
+      if (paths.length) await admin.storage.from("listing-media").remove(paths);
+      await admin.from("listings").delete().eq("id", listingId);
+    }
+    await deleteUsers(admin, userIds.reverse());
+  });
+
+  test("sube, valida, muestra y conserva una fotografía; rechaza contenido falso", async ({ page }) => {
+    test.setTimeout(150_000);
+    const owner = await createConfirmedUser(admin, "photo-ui-owner");
+    userIds.push(owner.id);
+    const listing = await admin.from("listings").insert({ owner_id: owner.id, title: "Draft fotos UI" }).select("id").single();
+    expect(listing.error).toBeNull();
+    listingId = listing.data!.id;
+
+    await page.goto(`/cuenta/anuncios/${listingId}/editar`);
+    await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel("Correo").fill(owner.email);
+    await page.getByLabel("Contraseña").fill(owner.password);
+    await page.getByRole("button", { name: "Ingresar" }).click();
+    await expect(page).toHaveURL(/\/cuenta$/);
+    await page.goto(`/cuenta/anuncios/${listingId}/editar`);
+    await expect(page.getByRole("heading", { name: "Subir fotografías" })).toBeVisible();
+    await expect(page.getByText("20 espacios disponibles", { exact: true })).toBeVisible();
+
+    const image = Buffer.from((await readFile(join(process.cwd(), "e2e", "fixtures", "pixel.png.base64"), "utf8")).trim(), "base64");
+    await page.route("**/storage/v1/object/upload/sign/**", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await route.continue();
+    });
+    await page.locator('input[type="file"]').setInputFiles({ name: "vehiculo.png", mimeType: "image/png", buffer: image });
+    await expect(page.getByText("Subiendo", { exact: true })).toBeVisible();
+    await expect(page.getByText("Validando", { exact: true })).toBeVisible();
+    await expect(page.getByText("Completada", { exact: true })).toBeVisible();
+    await expect(page.getByText("1 fotografía cargada correctamente.")).toBeVisible();
+    await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
+    await expect(page.getByText("19 espacios disponibles", { exact: true })).toBeVisible();
+
+    const stored = await admin.from("listing_media")
+      .select("storage_path,mime_type,file_size_bytes,width,height,sort_order,is_cover")
+      .eq("listing_id", listingId)
+      .single();
+    expect(stored.error).toBeNull();
+    expect(stored.data).toMatchObject({
+      mime_type: "image/png",
+      file_size_bytes: image.length,
+      width: 1,
+      height: 1,
+      sort_order: 0,
+      is_cover: true,
+    });
+
+    await page.getByRole("link", { name: "Vista previa" }).click();
+    await expect(page.getByText("Vista previa privada. Este anuncio todavía no está publicado.")).toBeVisible();
+    await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
+
+    await page.goto(`/cuenta/anuncios/${listingId}/editar`);
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "contenido-falso.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("no-es-una-imagen"),
+    });
+    await expect(page.getByText(/Error: El contenido real no coincide/)).toBeVisible();
+    await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(1);
+    expect((await admin.from("listing_media").select("id").eq("listing_id", listingId)).data).toHaveLength(1);
+    expect((await admin.from("listing_photo_uploads").select("id").eq("listing_id", listingId)).data).toHaveLength(0);
+    const objects = await admin.storage.from("listing-media").list(listingId, { limit: 100 });
+    expect(objects.data).toHaveLength(1);
+  });
+});

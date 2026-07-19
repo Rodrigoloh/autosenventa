@@ -2,8 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ListingForm } from "@/components/listing-form";
+import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
+import { ListingPhotoUploader } from "@/components/listing-photo-uploader";
 import { requireUser } from "@/lib/auth";
 import { LISTING_STATUS_LABELS } from "@/lib/listing-display";
+import { getPrivateListingPhotoAvailability, getPrivateListingPhotos } from "@/lib/listing-media";
 import { EDITABLE_LISTING_STATUSES } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
 import type { ListingStatus } from "@/lib/constants";
@@ -30,11 +33,15 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     );
   }
 
-  const [{ data: categories }, { data: brands }, { data: models }] = await Promise.all([
+  const [{ data: categories }, { data: brands }, { data: models }, photos] = await Promise.all([
     supabase.from("categories").select("id,name").eq("active", true).order("name"),
     supabase.from("brands").select("id,name").eq("active", true).order("name"),
     supabase.from("models").select("id,brand_id,name").eq("active", true).order("name"),
+    getPrivateListingPhotos(id, viewer.id),
   ]);
+  const availablePhotoSlots = status === "draft"
+    ? await getPrivateListingPhotoAvailability(id, viewer.id, photos?.length ?? 0)
+    : 0;
 
   return (
     <section>
@@ -42,6 +49,10 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">{LISTING_STATUS_LABELS[status]}</p>
         <h1 className="mt-3 text-4xl font-black tracking-tight">Datos del vehículo</h1>
         <p className="mt-3 max-w-2xl leading-7 text-stone-600">Guarda tu avance cuando quieras. El anuncio sigue siendo privado y su estado no cambiará.</p>
+      </div>
+      <div className="mt-10 space-y-8">
+        {status === "draft" ? <ListingPhotoUploader listingId={id} initialAvailableSlots={availablePhotoSlots} /> : null}
+        <ListingPhotoGallery photos={photos ?? []} remainingSlots={status === "draft" ? availablePhotoSlots : undefined} />
       </div>
       <ListingForm listing={data} categories={categories ?? []} brands={brands ?? []} models={models ?? []} />
     </section>

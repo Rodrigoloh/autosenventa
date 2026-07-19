@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
 import { requireUser } from "@/lib/auth";
 import { formatMxn } from "@/lib/listing-display";
+import { getPrivateListingPhotos } from "@/lib/listing-media";
 import { EDITABLE_LISTING_STATUSES } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +35,7 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
   ).eq("id", id).eq("owner_id", viewer.id).maybeSingle();
   if (!data) notFound();
   const listing = data as unknown as PreviewListing;
+  const photos = await getPrivateListingPhotos(id, viewer.id);
   const editable = EDITABLE_LISTING_STATUSES.includes(listing.status as (typeof EDITABLE_LISTING_STATUSES)[number]);
 
   return (
@@ -47,6 +50,7 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
           <Link href="/cuenta/anuncios" className="border px-5 py-3 text-sm font-bold hover:border-accent hover:text-accent">Mis anuncios</Link>
         </div>
       </header>
+      <ListingPhotoGallery photos={photos ?? []} />
       <dl className="grid gap-x-8 border-b sm:grid-cols-2 lg:grid-cols-3">
         <Detail label="Marca" value={listing.brands?.name} /><Detail label="Modelo" value={listing.models?.name} />
         <Detail label="Variante" value={listing.variant} /><Detail label="Año" value={listing.year} />

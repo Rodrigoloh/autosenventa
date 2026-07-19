@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { adminClient, createConfirmedUser, deleteUsers, e2eEnv } from "./support";
+import { adminClient, anonymousClient, createConfirmedUser, deleteUsers, e2eEnv } from "./support";
 
 test.describe.configure({ mode: "serial" });
 
@@ -10,10 +10,10 @@ test.describe("Storage binario real", () => {
   const admin = adminClient();
   const userIds: string[] = [];
   let listingId = "";
-  let storagePath = "";
+  const storagePaths: string[] = [];
 
   test.afterAll(async () => {
-    if (storagePath) await admin.storage.from("listing-media").remove([storagePath]);
+    if (storagePaths.length) await admin.storage.from("listing-media").remove(storagePaths);
     if (listingId) await admin.from("listings").delete().eq("id", listingId);
     await deleteUsers(admin, userIds.reverse());
   });
@@ -42,17 +42,53 @@ test.describe("Storage binario real", () => {
       target_extension: "png",
     }).single();
     expect(reservation.error).toBeNull();
-    storagePath = (reservation.data as { storage_path: string }).storage_path;
+    const reserved = reservation.data as { reservation_id: string; storage_path: string };
+    const storagePath = reserved.storage_path;
+    storagePaths.push(storagePath);
     expect(storagePath).toMatch(new RegExp(`^${listingId}/[0-9a-f-]{36}\\.png$`));
 
-    expect((await ownerClient.storage.from("listing-media").upload(storagePath, image, { contentType: "image/png" })).error).toBeNull();
+    const signedUpload = await ownerClient.storage.from("listing-media").createSignedUploadUrl(storagePath, { upsert: false });
+    expect(signedUpload.error).toBeNull();
+    const alteredPath = `${listingId}/${crypto.randomUUID()}.png`;
+    expect((await ownerClient.storage.from("listing-media").uploadToSignedUrl(
+      alteredPath, signedUpload.data!.token, image, { contentType: "image/png" },
+    )).error).toBeTruthy();
+    expect((await ownerClient.storage.from("listing-media").uploadToSignedUrl(
+      storagePath, signedUpload.data!.token, image, { contentType: "image/png" },
+    )).error).toBeNull();
     expect((await ownerClient.from("listing_media").insert({
       listing_id: listingId, storage_path: storagePath, media_type: "image",
       mime_type: "image/png", file_size_bytes: image.length, width: 1, height: 1,
     })).error).toBeTruthy();
-    expect((await ownerClient.storage.from("listing-media").download(storagePath)).error).toBeTruthy();
+    const finalized = await admin.rpc("finalize_listing_photo_upload", {
+      target_reservation_id: reserved.reservation_id,
+      target_requester_id: owner.id,
+      verified_mime_type: "image/png",
+      verified_size_bytes: image.length,
+      verified_width: 1,
+      verified_height: 1,
+    }).single();
+    expect(finalized.error).toBeNull();
+    expect(finalized.data).toMatchObject({ finalized_sort_order: 0, finalized_is_cover: true });
+
+    const ownerDownload = await ownerClient.storage.from("listing-media").download(storagePath);
+    expect(ownerDownload.error).toBeNull();
+    expect(Buffer.from(await ownerDownload.data!.arrayBuffer())).toEqual(image);
+    const signedRead = await ownerClient.storage.from("listing-media").createSignedUrl(storagePath, 60);
+    expect(signedRead.error).toBeNull();
+    expect((await fetch(signedRead.data!.signedUrl)).ok).toBe(true);
 
     expect((await otherClient.storage.from("listing-media").download(storagePath)).error).toBeTruthy();
+    expect((await anonymousClient().storage.from("listing-media").download(storagePath)).error).toBeTruthy();
+    expect((await otherClient.storage.from("listing-media").createSignedUrl(storagePath, 60)).error).toBeTruthy();
+    expect((await otherClient.rpc("finalize_listing_photo_upload", {
+      target_reservation_id: reserved.reservation_id,
+      target_requester_id: other.id,
+      verified_mime_type: "image/png",
+      verified_size_bytes: image.length,
+      verified_width: 1,
+      verified_height: 1,
+    })).error).toBeTruthy();
     expect((await otherClient.storage.from("listing-media").upload(storagePath, image, { contentType: "image/png", upsert: true })).error).toBeTruthy();
     const foreignPath = `${listingId}/${crypto.randomUUID()}.png`;
     expect((await otherClient.storage.from("listing-media").upload(foreignPath, image, { contentType: "image/png" })).error).toBeTruthy();
@@ -69,5 +105,38 @@ test.describe("Storage binario real", () => {
       target_size_bytes: 10 * 1024 * 1024 + 1,
       target_extension: "png",
     })).error).toBeTruthy();
+
+    const concurrentReservations = await Promise.all([1, 2].map(async () => {
+      const result = await ownerClient.rpc("reserve_listing_photo_upload", {
+        target_listing_id: listingId,
+        target_mime_type: "image/png",
+        target_size_bytes: image.length,
+        target_extension: "png",
+      }).single();
+      expect(result.error).toBeNull();
+      const item = result.data as { reservation_id: string; storage_path: string };
+      storagePaths.push(item.storage_path);
+      const signed = await ownerClient.storage.from("listing-media").createSignedUploadUrl(item.storage_path);
+      expect(signed.error).toBeNull();
+      expect((await ownerClient.storage.from("listing-media").uploadToSignedUrl(
+        item.storage_path, signed.data!.token, image, { contentType: "image/png" },
+      )).error).toBeNull();
+      return item;
+    }));
+    const concurrentFinalizations = await Promise.all(concurrentReservations.map((item) => admin.rpc(
+      "finalize_listing_photo_upload",
+      {
+        target_reservation_id: item.reservation_id,
+        target_requester_id: owner.id,
+        verified_mime_type: "image/png",
+        verified_size_bytes: image.length,
+        verified_width: 1,
+        verified_height: 1,
+      },
+    ).single()));
+    expect(concurrentFinalizations.every((result) => !result.error)).toBe(true);
+    const ordered = await admin.from("listing_media").select("sort_order,is_cover").eq("listing_id", listingId).order("sort_order");
+    expect(ordered.data?.map((item) => item.sort_order)).toEqual([0, 1, 2]);
+    expect(ordered.data?.filter((item) => item.is_cover)).toHaveLength(1);
   });
 });

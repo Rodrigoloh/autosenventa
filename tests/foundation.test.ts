@@ -4,6 +4,11 @@ import { accessDecision, resolveViewer, safeInternalPath } from "../src/lib/auth
 import { credentialsSchema, emailSchema } from "../src/lib/auth-validation";
 import { parsePublicEnv } from "../src/lib/env";
 import { listingCompletion } from "../src/lib/listing-display";
+import {
+  assertSafeImageDimensions,
+  detectImageMime,
+  photoUploadRequestSchema,
+} from "../src/lib/listing-photo-validation";
 import { DELETABLE_LISTING_STATUSES, EDITABLE_LISTING_STATUSES, listingDraftSchema, provisionalTitle } from "../src/lib/listing-validation";
 
 const user = { id: "11111111-1111-4111-8111-111111111111", role: "user" as const, display_name: null };
@@ -85,4 +90,33 @@ test("genera título tolerante y calcula avance", () => {
 test("mantiene separados estados editables y eliminables", () => {
   assert.deepEqual(EDITABLE_LISTING_STATUSES, ["draft", "changes_requested"]);
   assert.deepEqual(DELETABLE_LISTING_STATUSES, ["draft"]);
+});
+
+test("valida nombre, extensión, MIME y tamaño de fotografías", () => {
+  const valid = { listingId: user.id, originalName: "frente.JPEG", mimeType: "image/jpeg", sizeBytes: 1024, extension: "jpeg" };
+  assert.equal(photoUploadRequestSchema.safeParse(valid).success, true);
+  assert.equal(photoUploadRequestSchema.safeParse({ ...valid, mimeType: "image/png" }).success, false);
+  assert.equal(photoUploadRequestSchema.safeParse({ ...valid, extension: "png" }).success, false);
+  assert.equal(photoUploadRequestSchema.safeParse({ ...valid, sizeBytes: 10 * 1024 * 1024 + 1 }).success, false);
+  assert.equal(photoUploadRequestSchema.safeParse({ ...valid, mimeType: "image/gif", extension: "gif" }).success, false);
+});
+
+test("detecta magic bytes permitidos y rechaza contenido falso", () => {
+  assert.equal(detectImageMime(Uint8Array.from([0xff, 0xd8, 0xff, 0x00])), "image/jpeg");
+  assert.equal(detectImageMime(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "image/png");
+  assert.equal(detectImageMime(Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])), "image/webp");
+  assert.equal(detectImageMime(new TextEncoder().encode("contenido arbitrario etiquetado como imagen")), null);
+});
+
+test("rechaza dimensiones inválidas o superiores a 25 megapíxeles", () => {
+  assert.doesNotThrow(() => assertSafeImageDimensions(5000, 5000));
+  assert.throws(() => assertSafeImageDimensions(5001, 5000));
+  assert.throws(() => assertSafeImageDimensions(0, 100));
+});
+
+test("rechaza campos controlados que no pertenecen al payload de subida", () => {
+  const base = { listingId: user.id, originalName: "frente.webp", mimeType: "image/webp", sizeBytes: 1024, extension: "webp" };
+  assert.equal(photoUploadRequestSchema.safeParse({ ...base, storagePath: `${user.id}/fabricado.webp` }).success, false);
+  assert.equal(photoUploadRequestSchema.safeParse({ ...base, owner_id: user.id }).success, false);
+  assert.equal(photoUploadRequestSchema.safeParse({ ...base, sort_order: 0 }).success, false);
 });

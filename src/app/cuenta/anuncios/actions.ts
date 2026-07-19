@@ -11,6 +11,7 @@ import {
   type ListingActionState,
 } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const listingIdSchema = z.uuid();
 
@@ -136,10 +137,15 @@ export async function deleteDraftAction(
     return { status: "error", message: "Este anuncio ya no se puede eliminar desde borradores." };
   }
 
-  // La limpieza de archivos en Storage se resolverá en la fase de medios.
-  const { error: mediaError } = await supabase.from("listing_media").delete().eq("listing_id", listingId);
-  if (mediaError) {
-    return { status: "error", message: "No pudimos preparar los medios del borrador para eliminarlo." };
+  // La eliminación coordinada de objetos queda fuera de esta fase. Impedimos
+  // borrar un draft con medios o reservas para no crear objetos huérfanos.
+  const admin = createAdminClient();
+  const [{ count: mediaCount }, { count: reservationCount }] = await Promise.all([
+    admin.from("listing_media").select("id", { count: "exact", head: true }).eq("listing_id", listingId),
+    admin.from("listing_photo_uploads").select("id", { count: "exact", head: true }).eq("listing_id", listingId),
+  ]);
+  if ((mediaCount ?? 0) > 0 || (reservationCount ?? 0) > 0) {
+    return { status: "error", message: "Este borrador tiene fotografías o subidas pendientes y todavía no puede eliminarse." };
   }
 
   const { data: deleted, error } = await supabase
