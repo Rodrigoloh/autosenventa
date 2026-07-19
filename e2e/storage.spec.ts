@@ -135,8 +135,38 @@ test.describe("Storage binario real", () => {
       },
     ).single()));
     expect(concurrentFinalizations.every((result) => !result.error)).toBe(true);
-    const ordered = await admin.from("listing_media").select("sort_order,is_cover").eq("listing_id", listingId).order("sort_order");
+    const ordered = await admin.from("listing_media").select("id,storage_path,sort_order,is_cover").eq("listing_id", listingId).order("sort_order");
     expect(ordered.data?.map((item) => item.sort_order)).toEqual([0, 1, 2]);
     expect(ordered.data?.filter((item) => item.is_cover)).toHaveLength(1);
+
+    const media = ordered.data!;
+    expect((await ownerClient.rpc("set_listing_photo_cover", { target_media_id: media[2].id })).error).toBeNull();
+    expect((await ownerClient.rpc("reorder_listing_photos", {
+      target_listing_id: listingId,
+      target_media_ids: media.map((item) => item.id).reverse(),
+    })).error).toBeNull();
+    expect((await otherClient.rpc("set_listing_photo_cover", { target_media_id: media[0].id })).error).toBeTruthy();
+    // Storage devuelve 200 aunque RLS convierta el DELETE en no-op; verificamos el objeto.
+    expect((await ownerClient.storage.from("listing-media").remove([media[0].storage_path])).error).toBeNull();
+    expect((await admin.storage.from("listing-media").list(listingId, { search: media[0].storage_path.split("/")[1] })).data).toHaveLength(1);
+
+    const preparedDelete = await ownerClient.rpc("prepare_listing_photo_deletion", { target_media_id: media[0].id }).single();
+    expect(preparedDelete.error).toBeNull();
+    expect((await admin.storage.from("listing-media").remove([media[0].storage_path])).error).toBeNull();
+    expect((await admin.rpc("finalize_listing_photo_deletion", {
+      target_media_id: media[0].id,
+      target_requester_id: owner.id,
+    })).error).toBeNull();
+    const compacted = await admin.from("listing_media").select("sort_order,is_cover").eq("listing_id", listingId).order("sort_order");
+    expect(compacted.data?.map((item) => item.sort_order)).toEqual([0, 1]);
+    expect(compacted.data?.filter((item) => item.is_cover)).toHaveLength(1);
+
+    expect((await ownerClient.rpc("begin_draft_deletion", { target_listing_id: listingId })).error).toBeNull();
+    expect((await ownerClient.rpc("reserve_listing_photo_upload", {
+      target_listing_id: listingId,
+      target_mime_type: "image/png",
+      target_size_bytes: image.length,
+      target_extension: "png",
+    })).error).toBeTruthy();
   });
 });

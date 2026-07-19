@@ -137,27 +137,33 @@ export async function deleteDraftAction(
     return { status: "error", message: "Este anuncio ya no se puede eliminar desde borradores." };
   }
 
-  // La eliminación coordinada de objetos queda fuera de esta fase. Impedimos
-  // borrar un draft con medios o reservas para no crear objetos huérfanos.
-  const admin = createAdminClient();
-  const [{ count: mediaCount }, { count: reservationCount }] = await Promise.all([
-    admin.from("listing_media").select("id", { count: "exact", head: true }).eq("listing_id", listingId),
-    admin.from("listing_photo_uploads").select("id", { count: "exact", head: true }).eq("listing_id", listingId),
-  ]);
-  if ((mediaCount ?? 0) > 0 || (reservationCount ?? 0) > 0) {
-    return { status: "error", message: "Este borrador tiene fotografías o subidas pendientes y todavía no puede eliminarse." };
+  const started = await supabase.rpc("begin_draft_deletion", { target_listing_id: listingId });
+  if (started.error) {
+    return { status: "error", message: "No pudimos bloquear el borrador para eliminarlo. Recarga e inténtalo de nuevo." };
   }
 
-  const { data: deleted, error } = await supabase
-    .from("listings")
-    .delete()
-    .eq("id", listingId)
-    .eq("owner_id", viewer.id)
-    .in("status", [...DELETABLE_LISTING_STATUSES])
-    .select("id");
+  // El prefijo se deriva exclusivamente del listing validado. Se vuelve a listar
+  // desde offset cero porque cada lote eliminado cambia la página siguiente.
+  const admin = createAdminClient();
+  for (;;) {
+    const listed = await admin.storage.from("listing-media").list(listingId, { limit: 1000, offset: 0 });
+    if (listed.error) {
+      return { status: "error", message: "El borrador quedó bloqueado, pero Storage no pudo listar sus archivos. Intenta eliminarlo nuevamente." };
+    }
+    const paths = (listed.data ?? []).map((item) => `${listingId}/${item.name}`);
+    if (!paths.length) break;
+    const removed = await admin.storage.from("listing-media").remove(paths);
+    if (removed.error) {
+      return { status: "error", message: "El borrador quedó bloqueado y algunos archivos no pudieron eliminarse. Reintenta para completar la limpieza." };
+    }
+  }
 
-  if (error || deleted?.length !== 1) {
-    return { status: "error", message: "No pudimos eliminar el borrador. Recarga e inténtalo de nuevo." };
+  const finalized = await admin.rpc("finalize_draft_deletion", {
+    target_listing_id: listingId,
+    target_requester_id: viewer.id,
+  });
+  if (finalized.error || finalized.data !== true) {
+    return { status: "error", message: "Los archivos se limpiaron, pero falta cerrar el borrado en la base. Reintenta la eliminación." };
   }
 
   revalidatePath("/cuenta");

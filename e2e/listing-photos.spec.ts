@@ -20,7 +20,7 @@ test.describe("Fotografías privadas del borrador", () => {
     await deleteUsers(admin, userIds.reverse());
   });
 
-  test("sube, valida, muestra y conserva una fotografía; rechaza contenido falso", async ({ page }) => {
+  test("sube, administra, previsualiza y elimina un borrador con fotografías", async ({ page }) => {
     test.setTimeout(150_000);
     const owner = await createConfirmedUser(admin, "photo-ui-owner");
     userIds.push(owner.id);
@@ -65,6 +65,36 @@ test.describe("Fotografías privadas del borrador", () => {
       is_cover: true,
     });
 
+    await page.locator('input[type="file"]').setInputFiles([
+      { name: "lateral.png", mimeType: "image/png", buffer: image },
+      { name: "interior.png", mimeType: "image/png", buffer: image },
+    ]);
+    await expect(page.getByText("2 fotografías cargadas correctamente.")).toBeVisible();
+    await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(3);
+    await expect(page.getByText("17 espacios disponibles", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Elegir portada" }).nth(1).click();
+    await expect(page.getByText("Portada actualizada.")).toBeVisible();
+    await page.getByRole("button", { name: "Mover antes" }).nth(1).click();
+    await expect(page.getByText("Orden de fotografías guardado.")).toBeVisible();
+
+    let managed = await admin.from("listing_media")
+      .select("id,sort_order,is_cover,storage_path")
+      .eq("listing_id", listingId)
+      .order("sort_order");
+    expect(managed.data?.map((item) => item.sort_order)).toEqual([0, 1, 2]);
+    expect(managed.data?.filter((item) => item.is_cover)).toHaveLength(1);
+    expect(managed.data?.[0].is_cover).toBe(true);
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Eliminar foto" }).nth(2).click();
+    await expect(page.getByText(/Fotografía eliminada/)).toBeVisible();
+    await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(2);
+    managed = await admin.from("listing_media").select("id,sort_order,is_cover,storage_path").eq("listing_id", listingId).order("sort_order");
+    expect(managed.data?.map((item) => item.sort_order)).toEqual([0, 1]);
+    expect(managed.data?.filter((item) => item.is_cover)).toHaveLength(1);
+    expect((await admin.storage.from("listing-media").list(listingId, { limit: 100 })).data).toHaveLength(2);
+
     await page.getByRole("link", { name: "Vista previa" }).click();
     await expect(page.getByText("Vista previa privada. Este anuncio todavía no está publicado.")).toBeVisible();
     await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
@@ -78,10 +108,18 @@ test.describe("Fotografías privadas del borrador", () => {
       buffer: Buffer.from("no-es-una-imagen"),
     });
     await expect(page.getByText(/Error: El contenido real no coincide/)).toBeVisible();
-    await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(1);
-    expect((await admin.from("listing_media").select("id").eq("listing_id", listingId)).data).toHaveLength(1);
+    await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(2);
+    expect((await admin.from("listing_media").select("id").eq("listing_id", listingId)).data).toHaveLength(2);
     expect((await admin.from("listing_photo_uploads").select("id").eq("listing_id", listingId)).data).toHaveLength(0);
     const objects = await admin.storage.from("listing-media").list(listingId, { limit: 100 });
-    expect(objects.data).toHaveLength(1);
+    expect(objects.data).toHaveLength(2);
+
+    await page.getByLabel("Confirmo que quiero eliminar este borrador.").check();
+    await page.getByRole("button", { name: "Eliminar borrador" }).click();
+    await expect(page).toHaveURL(/\/cuenta\/anuncios$/);
+    expect((await admin.from("listings").select("id").eq("id", listingId)).data).toHaveLength(0);
+    expect((await admin.from("listing_media").select("id").eq("listing_id", listingId)).data).toHaveLength(0);
+    expect((await admin.from("listing_photo_uploads").select("id").eq("listing_id", listingId)).data).toHaveLength(0);
+    expect((await admin.storage.from("listing-media").list(listingId, { limit: 100 })).data).toHaveLength(0);
   });
 });

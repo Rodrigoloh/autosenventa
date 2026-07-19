@@ -3,6 +3,7 @@ import { MAX_LISTING_PHOTOS } from "@/lib/listing-photo-validation";
 
 export function ListingPhotoGallery({ photos, remainingSlots }: { photos: PrivateListingPhoto[]; remainingSlots?: number }) {
   const remaining = remainingSlots ?? Math.max(0, MAX_LISTING_PHOTOS - photos.length);
+  const visiblePhotos = photos.filter((photo) => !photo.deletionPending && photo.signedUrl);
   return (
     <section aria-labelledby="photo-gallery-title" className="border-t pt-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -11,10 +12,11 @@ export function ListingPhotoGallery({ photos, remainingSlots }: { photos: Privat
           <p className="mt-1 text-sm text-stone-600">{photos.length} de {MAX_LISTING_PHOTOS} · {remaining} espacios disponibles</p>
         </div>
       </div>
-      {photos.length ? (
+      {visiblePhotos.length ? (
         <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {photos.map((photo, index) => (
-            <li key={photo.id} className="relative overflow-hidden border bg-stone-100">
+          {visiblePhotos.map((photo, index) => {
+            if (!photo.signedUrl) return null;
+            return <li key={photo.id} className="relative overflow-hidden border bg-stone-100">
               {/* La URL firmada privada expira y no se puede declarar como host estático de next/image. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -28,8 +30,8 @@ export function ListingPhotoGallery({ photos, remainingSlots }: { photos: Privat
                 <span>Foto {index + 1}</span>
                 {photo.isCover ? <span className="bg-stone-950 px-2 py-1 text-white">Portada</span> : null}
               </div>
-            </li>
-          ))}
+            </li>;
+          })}
         </ol>
       ) : <p className="mt-5 border border-dashed p-6 text-sm text-stone-600">Todavía no hay fotografías finalizadas.</p>}
     </section>

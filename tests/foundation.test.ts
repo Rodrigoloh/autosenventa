@@ -7,6 +7,7 @@ import { listingCompletion } from "../src/lib/listing-display";
 import {
   assertSafeImageDimensions,
   detectImageMime,
+  photoReorderRequestSchema,
   photoUploadRequestSchema,
 } from "../src/lib/listing-photo-validation";
 import { DELETABLE_LISTING_STATUSES, EDITABLE_LISTING_STATUSES, listingDraftSchema, provisionalTitle } from "../src/lib/listing-validation";
@@ -119,4 +120,13 @@ test("rechaza campos controlados que no pertenecen al payload de subida", () => 
   assert.equal(photoUploadRequestSchema.safeParse({ ...base, storagePath: `${user.id}/fabricado.webp` }).success, false);
   assert.equal(photoUploadRequestSchema.safeParse({ ...base, owner_id: user.id }).success, false);
   assert.equal(photoUploadRequestSchema.safeParse({ ...base, sort_order: 0 }).success, false);
+});
+
+test("acepta sólo IDs mínimos y únicos para reordenar fotografías", () => {
+  const second = "22222222-2222-4222-8222-222222222222";
+  const valid = { listingId: user.id, mediaIds: [user.id, second] };
+  assert.equal(photoReorderRequestSchema.safeParse(valid).success, true);
+  assert.equal(photoReorderRequestSchema.safeParse({ ...valid, mediaIds: [user.id, user.id] }).success, false);
+  assert.equal(photoReorderRequestSchema.safeParse({ ...valid, sortOrders: [0, 1] }).success, false);
+  assert.equal(photoReorderRequestSchema.safeParse({ ...valid, storagePath: `${user.id}/inventada.jpg` }).success, false);
 });

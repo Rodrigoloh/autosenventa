@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ListingForm } from "@/components/listing-form";
 import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
+import { ListingPhotoManager } from "@/components/listing-photo-manager";
 import { ListingPhotoUploader } from "@/components/listing-photo-uploader";
 import { requireUser } from "@/lib/auth";
 import { LISTING_STATUS_LABELS } from "@/lib/listing-display";
@@ -52,7 +53,14 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
       </div>
       <div className="mt-10 space-y-8">
         {status === "draft" ? <ListingPhotoUploader listingId={id} initialAvailableSlots={availablePhotoSlots} /> : null}
-        <ListingPhotoGallery photos={photos ?? []} remainingSlots={status === "draft" ? availablePhotoSlots : undefined} />
+        {status === "draft" ? (
+          <ListingPhotoManager
+            key={(photos ?? []).map((photo) => `${photo.id}:${photo.sortOrder}:${photo.isCover}`).join("|")}
+            listingId={id}
+            initialPhotos={photos ?? []}
+            remainingSlots={availablePhotoSlots}
+          />
+        ) : <ListingPhotoGallery photos={photos ?? []} />}
       </div>
       <ListingForm listing={data} categories={categories ?? []} brands={brands ?? []} models={models ?? []} />
     </section>

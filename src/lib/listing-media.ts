@@ -6,11 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 
 export type PrivateListingPhoto = {
   id: string;
-  signedUrl: string;
+  signedUrl: string | null;
   width: number;
   height: number;
   sortOrder: number;
   isCover: boolean;
+  deletionPending: boolean;
 };
 
 export async function getPrivateListingPhotos(listingId: string, viewerId: string) {
@@ -23,15 +24,29 @@ export async function getPrivateListingPhotos(listingId: string, viewerId: strin
   if (!listing) return null;
 
   const { data: media, error } = await supabase.from("listing_media")
-    .select("id,storage_path,width,height,sort_order,is_cover")
+    .select("id,storage_path,width,height,sort_order,is_cover,deletion_started_at")
     .eq("listing_id", listingId)
     .order("sort_order", { ascending: true });
   if (error) throw new Error("No pudimos consultar las fotografías privadas.");
 
   return Promise.all((media ?? []).map(async (item) => {
+    if (!item.width || !item.height) {
+      throw new Error("Una fotografía privada no tiene dimensiones válidas.");
+    }
+    if (item.deletion_started_at) {
+      return {
+        id: item.id,
+        signedUrl: null,
+        width: item.width,
+        height: item.height,
+        sortOrder: item.sort_order,
+        isCover: item.is_cover,
+        deletionPending: true,
+      } satisfies PrivateListingPhoto;
+    }
     const signed = await supabase.storage.from("listing-media")
       .createSignedUrl(item.storage_path, 300);
-    if (signed.error || !signed.data?.signedUrl || !item.width || !item.height) {
+    if (signed.error || !signed.data?.signedUrl) {
       throw new Error("No pudimos firmar una fotografía privada.");
     }
     return {
@@ -41,6 +56,7 @@ export async function getPrivateListingPhotos(listingId: string, viewerId: strin
       height: item.height,
       sortOrder: item.sort_order,
       isCover: item.is_cover,
+      deletionPending: false,
     } satisfies PrivateListingPhoto;
   }));
 }
@@ -52,11 +68,11 @@ export async function getPrivateListingPhotoAvailability(
 ) {
   const supabase = await createClient();
   const { data: listing } = await supabase.from("listings")
-    .select("id,status")
+    .select("id,status,deletion_started_at")
     .eq("id", listingId)
     .eq("owner_id", viewerId)
     .maybeSingle();
-  if (!listing || listing.status !== "draft") return 0;
+  if (!listing || listing.status !== "draft" || listing.deletion_started_at) return 0;
 
   const admin = createAdminClient();
   const { count } = await admin.from("listing_photo_uploads")

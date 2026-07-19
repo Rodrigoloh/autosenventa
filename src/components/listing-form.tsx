@@ -197,7 +197,7 @@ function DeleteDraftForm({ listingId }: { listingId: string }) {
   return (
     <form action={formAction} className="mt-10 border-t pt-8">
       <h2 className="text-lg font-black tracking-tight">Eliminar borrador</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Esta acción elimina el borrador privado y sus relaciones guardadas. Los archivos de medios se limpiarán en la fase de medios.</p>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Esta acción elimina el borrador privado, todas sus fotografías en Storage y sus relaciones guardadas.</p>
       <label className="mt-4 flex max-w-2xl items-start gap-3 text-sm font-semibold">
         <input className="mt-1" type="checkbox" name="confirm_delete" value="yes" />
         Confirmo que quiero eliminar este borrador.

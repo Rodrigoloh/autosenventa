@@ -28,6 +28,15 @@ export const photoUploadRequestSchema = z.object({
   }
 });
 
+export const photoReorderRequestSchema = z.object({
+  listingId: z.uuid(),
+  mediaIds: z.array(z.uuid()).min(1).max(MAX_LISTING_PHOTOS),
+}).strict().superRefine((value, context) => {
+  if (new Set(value.mediaIds).size !== value.mediaIds.length) {
+    context.addIssue({ code: "custom", path: ["mediaIds"], message: "El orden contiene fotografías repetidas." });
+  }
+});
+
 export type PhotoUploadRequest = z.infer<typeof photoUploadRequestSchema>;
 export type AllowedPhotoMime = (typeof PHOTO_MIME_TYPES)[number];
 export type AllowedPhotoExtension = (typeof PHOTO_EXTENSIONS)[number];

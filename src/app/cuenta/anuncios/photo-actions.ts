@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
-import { photoUploadRequestSchema } from "@/lib/listing-photo-validation";
+import { photoReorderRequestSchema, photoUploadRequestSchema } from "@/lib/listing-photo-validation";
 import { validateUploadedPhoto } from "@/lib/listing-photo-validation.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const reservationIdSchema = z.uuid();
+const mediaIdSchema = z.uuid();
 
 export type ReservePhotoResult =
   | { ok: true; reservationId: string; storagePath: string; token: string }
@@ -17,6 +18,15 @@ export type ReservePhotoResult =
 export type FinalizePhotoResult =
   | { ok: true; mediaId: string }
   | { ok: false; message: string };
+
+export type ManagePhotoResult =
+  | { ok: true; message: string }
+  | { ok: false; message: string };
+
+function revalidateListingPhotos(listingId: string) {
+  revalidatePath(`/cuenta/anuncios/${listingId}/editar`);
+  revalidatePath(`/cuenta/anuncios/${listingId}/vista-previa`);
+}
 
 export async function reservePhotoUploadAction(input: unknown): Promise<ReservePhotoResult> {
   const viewer = await requireUser();
@@ -177,7 +187,82 @@ export async function finalizePhotoUploadAction(reservationId: string): Promise<
   }
 
   const media = finalized.data as { media_id: string };
-  revalidatePath(`/cuenta/anuncios/${reservation.listing_id}/editar`);
-  revalidatePath(`/cuenta/anuncios/${reservation.listing_id}/vista-previa`);
+  revalidateListingPhotos(reservation.listing_id);
   return { ok: true, mediaId: media.media_id };
+}
+
+export async function setListingPhotoCoverAction(mediaId: string): Promise<ManagePhotoResult> {
+  await requireUser();
+  if (!mediaIdSchema.safeParse(mediaId).success) {
+    return { ok: false, message: "La fotografía no es válida." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_listing_photo_cover", { target_media_id: mediaId });
+  if (error || data !== true) {
+    return { ok: false, message: "No pudimos elegir la portada. Verifica que el anuncio siga siendo un borrador propio." };
+  }
+  const { data: media } = await supabase.from("listing_media").select("listing_id").eq("id", mediaId).maybeSingle();
+  if (media) revalidateListingPhotos(media.listing_id);
+  return { ok: true, message: "Portada actualizada." };
+}
+
+export async function reorderListingPhotosAction(input: unknown): Promise<ManagePhotoResult> {
+  await requireUser();
+  const parsed = photoReorderRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "El orden no es válido." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("reorder_listing_photos", {
+    target_listing_id: parsed.data.listingId,
+    target_media_ids: parsed.data.mediaIds,
+  });
+  if (error || data !== true) {
+    return { ok: false, message: "No pudimos guardar el orden completo. Recarga e inténtalo de nuevo." };
+  }
+  revalidateListingPhotos(parsed.data.listingId);
+  return { ok: true, message: "Orden de fotografías guardado." };
+}
+
+export async function deleteListingPhotoAction(mediaId: string): Promise<ManagePhotoResult> {
+  const viewer = await requireUser();
+  if (!mediaIdSchema.safeParse(mediaId).success) {
+    return { ok: false, message: "La fotografía no es válida." };
+  }
+
+  const supabase = await createClient();
+  const prepared = await supabase.rpc("prepare_listing_photo_deletion", {
+    target_media_id: mediaId,
+  }).single();
+  if (prepared.error || !prepared.data) {
+    return { ok: false, message: "No pudimos preparar la eliminación. Sólo se permiten fotografías de un borrador propio." };
+  }
+  const deletion = prepared.data as { deleting_listing_id: string; deleting_storage_path: string };
+  const admin = createAdminClient();
+  const removed = await admin.storage.from("listing-media").remove([deletion.deleting_storage_path]);
+  if (removed.error) {
+    // Sólo se revierte el marcador si Postgres confirma que el objeto todavía existe.
+    await admin.rpc("cancel_listing_photo_deletion", {
+      target_media_id: mediaId,
+      target_requester_id: viewer.id,
+    });
+    return { ok: false, message: "Storage no confirmó la eliminación. La fotografía se conservó; inténtalo de nuevo." };
+  }
+
+  const finalized = await admin.rpc("finalize_listing_photo_deletion", {
+    target_media_id: mediaId,
+    target_requester_id: viewer.id,
+  }).single();
+  if (finalized.error || !finalized.data) {
+    const { data: existing } = await admin.from("listing_media").select("id").eq("id", mediaId).maybeSingle();
+    if (existing) {
+      return {
+        ok: false,
+        message: "El archivo ya fue eliminado, pero falta cerrar el cambio en la base. Usa Eliminar otra vez para reintentarlo.",
+      };
+    }
+  }
+
+  revalidateListingPhotos(deletion.deleting_listing_id);
+  return { ok: true, message: "Fotografía eliminada y orden actualizado." };
 }
