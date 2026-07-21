@@ -11,11 +11,11 @@ export const getViewer = cache(async () => {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, role, display_name")
+    .select("id, role, display_name, username")
     .eq("id", data.user.id)
     .single();
 
-  return resolveViewer(profile);
+  return resolveViewer(profile ? { ...profile, email: data.user.email ?? null } : null);
 });
 
 export async function requireUser() {

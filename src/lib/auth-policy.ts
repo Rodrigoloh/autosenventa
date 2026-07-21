@@ -5,6 +5,8 @@ export const profileSchema = z.object({
   id: z.uuid(),
   role: z.enum(APP_ROLES),
   display_name: z.string().nullable(),
+  username: z.string().nullable().optional(),
+  email: z.email().nullable().optional(),
 });
 
 export type Viewer = z.infer<typeof profileSchema>;
@@ -34,4 +36,8 @@ export function safeInternalPath(value: string | null, fallback = "/cuenta") {
   } catch {
     return fallback;
   }
+}
+
+export function defaultPathForRole(role: AppRole) {
+  return role === "user" ? "/cuenta" : "/staff";
 }

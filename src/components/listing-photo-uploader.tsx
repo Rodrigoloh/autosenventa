@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import {
   cancelPhotoUploadAction,
   finalizePhotoUploadAction,
@@ -26,12 +26,15 @@ const STATUS_LABELS: Record<UploadStatus, string> = {
   error: "Error",
 };
 
+const subscribeToHydration = () => () => {};
+
 export function ListingPhotoUploader({ listingId, initialAvailableSlots }: { listingId: string; initialAvailableSlots: number }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<UploadItem[]>([]);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const availableSlots = initialAvailableSlots;
 
   function updateItem(id: string, values: Partial<UploadItem>) {
@@ -149,7 +152,7 @@ export function ListingPhotoUploader({ listingId, initialAvailableSlots }: { lis
           type="file"
           accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
           multiple
-          disabled={busy || availableSlots === 0}
+          disabled={!hydrated || busy || availableSlots === 0}
           onChange={(event) => void handleFiles(event.target.files)}
         />
       </label>

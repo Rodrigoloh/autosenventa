@@ -16,5 +16,5 @@ export function ClaimReviewForm({ listingId }: { listingId: string }) {
 
 function ClaimButton({ settled }: { settled: boolean }) {
   const { pending } = useFormStatus();
-  return <button type="submit" disabled={pending || settled} className="inline-flex min-h-11 items-center justify-center bg-stone-950 px-5 py-3 text-sm font-bold text-white hover:bg-accent disabled:cursor-wait disabled:opacity-60">{pending ? "Tomando…" : "Tomar revisión"}</button>;
+  return <button type="submit" disabled={pending || settled} className="inline-flex min-h-11 items-center justify-center bg-stone-950 px-5 py-3 text-sm font-bold text-white hover:bg-accent disabled:cursor-wait disabled:opacity-60">{pending ? "Asignando…" : "Revisar anuncio"}</button>;
 }

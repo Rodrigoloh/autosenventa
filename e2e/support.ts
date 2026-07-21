@@ -31,12 +31,18 @@ export function anonymousClient() {
   });
 }
 
-export async function createConfirmedUser(admin: SupabaseClient, label: string) {
+export async function createConfirmedUser(admin: SupabaseClient, label: string, options?: { withUsername?: boolean }) {
   const email = `e2e-${label}-${runId}@example.test`;
   const password = `E2e-${crypto.randomUUID()}!`;
-  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  const username = `u${crypto.randomUUID().replaceAll("-", "").slice(0, 15)}`;
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: options?.withUsername === false ? {} : { username },
+  });
   if (error || !data.user) throw error ?? new Error("Auth Admin no devolvió usuario.");
-  return { id: data.user.id, email, password };
+  return { id: data.user.id, email, password, username: options?.withUsername === false ? null : username };
 }
 
 export async function deleteUsers(admin: SupabaseClient, userIds: string[]) {

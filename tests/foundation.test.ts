@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accessDecision, resolveViewer, safeInternalPath } from "../src/lib/auth-policy";
-import { credentialsSchema, emailSchema } from "../src/lib/auth-validation";
+import { accessDecision, defaultPathForRole, resolveViewer, safeInternalPath } from "../src/lib/auth-policy";
+import { credentialsSchema, emailSchema, registrationSchema, usernameSchema } from "../src/lib/auth-validation";
 import { parsePublicEnv } from "../src/lib/env";
 import { listingCompletion } from "../src/lib/listing-display";
 import {
@@ -28,6 +28,15 @@ test("valida credenciales y correo", () => {
   assert.equal(emailSchema.safeParse({ email: "owner@example.test" }).success, true);
 });
 
+test("valida username y confirmación de registro", () => {
+  assert.equal(usernameSchema.parse(" Usuario_5 "), "usuario_5");
+  for (const invalid of ["5usuario", "usuario_", "usuario__cinco", "con-punto.", "soporte", "áccento"]) {
+    assert.equal(usernameSchema.safeParse(invalid).success, false);
+  }
+  assert.equal(registrationSchema.safeParse({ username: "usuario5", email: "u@example.test", password: "12345678", confirm_password: "12345678" }).success, true);
+  assert.equal(registrationSchema.safeParse({ username: "usuario5", email: "u@example.test", password: "12345678", confirm_password: "87654321" }).success, false);
+});
+
 test("rechaza perfiles ausentes o roles inesperados", () => {
   assert.equal(resolveViewer(null), null);
   assert.equal(resolveViewer({ ...user, role: "superadmin" }), null);
@@ -48,6 +57,9 @@ test("sólo admite redirecciones internas", () => {
   assert.equal(safeInternalPath("https://evil.example/path"), "/cuenta");
   assert.equal(safeInternalPath("//evil.example/path"), "/cuenta");
   assert.equal(safeInternalPath(null, "/login"), "/login");
+  assert.equal(defaultPathForRole("user"), "/cuenta");
+  assert.equal(defaultPathForRole("staff"), "/staff");
+  assert.equal(defaultPathForRole("admin"), "/staff");
 });
 
 test("valida y normaliza únicamente campos del borrador", () => {
@@ -95,9 +107,10 @@ test("mantiene separados estados editables y eliminables", () => {
 });
 
 test("mapea la checklist de revisión y conserva códigos estables", () => {
-  const items = readinessItems(["invalid_price", "description_too_short", "invalid_price"]);
-  assert.deepEqual(items.map((item) => item.code), ["invalid_price", "description_too_short", "missing_attestations"]);
+  const items = readinessItems(["invalid_price", "missing_public_username", "description_too_short", "invalid_price"]);
+  assert.deepEqual(items.map((item) => item.code), ["invalid_price", "missing_public_username", "description_too_short", "missing_attestations"]);
   assert.equal(items.find((item) => item.code === "invalid_price")?.category, "Precio");
+  assert.equal(items.find((item) => item.code === "missing_public_username")?.category, "Perfil");
 });
 
 test("valida mínimos de historia, precio y declaraciones para revisión", () => {

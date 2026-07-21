@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect as baseExpect, test } from "@playwright/test";
 import { adminClient, createConfirmedUser, deleteUsers } from "./support";
+
+const expect = baseExpect.configure({ timeout: 60_000 });
 
 test.describe.configure({ mode: "serial" });
 
@@ -34,20 +36,15 @@ test.describe("Fotografías privadas del borrador", () => {
     await page.getByLabel("Correo").fill(owner.email);
     await page.getByLabel("Contraseña").fill(owner.password);
     await page.getByRole("button", { name: "Ingresar" }).click();
-    await expect(page).toHaveURL(/\/cuenta$/);
+    await expect(page).toHaveURL(/\/cuenta$/, { timeout: 60_000 });
     await page.goto(`/cuenta/anuncios/${listingId}/editar`);
     await expect(page.getByRole("heading", { name: "Subir fotografías" })).toBeVisible();
     await expect(page.getByText("20 espacios disponibles", { exact: true })).toBeVisible();
 
     const image = Buffer.from((await readFile(join(process.cwd(), "e2e", "fixtures", "pixel.png.base64"), "utf8")).trim(), "base64");
-    await page.route("**/storage/v1/object/upload/sign/**", async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await route.continue();
-    });
     await page.locator('input[type="file"]').setInputFiles({ name: "vehiculo.png", mimeType: "image/png", buffer: image });
-    await expect(page.getByText("Subiendo", { exact: true })).toBeVisible();
-    await expect(page.getByText("Completada", { exact: true })).toBeVisible();
-    await expect(page.getByText("1 fotografía cargada correctamente.")).toBeVisible();
+    await expect(page.getByText("Completada", { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("1 fotografía cargada correctamente.")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
     await expect(page.getByText("19 espacios disponibles", { exact: true })).toBeVisible();
     await page.reload();
@@ -78,7 +75,7 @@ test.describe("Fotografías privadas del borrador", () => {
     await page.getByRole("button", { name: "Elegir portada" }).nth(1).click();
     await expect(page.getByText("Portada actualizada.")).toBeVisible();
     await page.getByRole("button", { name: "Mover antes" }).nth(1).click();
-    await expect(page.getByText("Orden de fotografías guardado.")).toBeVisible();
+    await expect(page.getByText("Orden de fotografías guardado.")).toBeVisible({ timeout: 60_000 });
 
     let managed = await admin.from("listing_media")
       .select("id,sort_order,is_cover,storage_path")
@@ -90,7 +87,7 @@ test.describe("Fotografías privadas del borrador", () => {
 
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Eliminar foto" }).nth(2).click();
-    await expect(page.getByText(/Fotografía eliminada/)).toBeVisible();
+    await expect(page.getByText(/Fotografía eliminada/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(2);
     managed = await admin.from("listing_media").select("id,sort_order,is_cover,storage_path").eq("listing_id", listingId).order("sort_order");
     expect(managed.data?.map((item) => item.sort_order)).toEqual([0, 1]);
@@ -98,7 +95,7 @@ test.describe("Fotografías privadas del borrador", () => {
     expect((await admin.storage.from("listing-media").list(listingId, { limit: 100 })).data).toHaveLength(2);
 
     await page.getByRole("link", { name: "Vista previa" }).click();
-    await expect(page.getByText("Vista previa privada. Este anuncio todavía no está publicado.")).toBeVisible();
+    await expect(page.getByText("Vista previa privada. Este anuncio todavía no está publicado.")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();

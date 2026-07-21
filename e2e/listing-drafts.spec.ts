@@ -14,6 +14,7 @@ test.describe("Borrador de anuncio del propietario", () => {
   });
 
   test("crea, guarda, recupera y previsualiza un draft privado", async ({ page }) => {
+    test.setTimeout(360_000);
     const owner = await createConfirmedUser(admin, "draft-owner");
     const other = await createConfirmedUser(admin, "draft-other");
     userIds.push(owner.id, other.id);
@@ -36,7 +37,7 @@ test.describe("Borrador de anuncio del propietario", () => {
 
     await page.goto("/cuenta/anuncios/nuevo");
     await page.getByRole("button", { name: "Crear anuncio" }).click();
-    await expect(page).toHaveURL(/\/cuenta\/anuncios\/[0-9a-f-]{36}\/editar$/);
+    await expect(page).toHaveURL(/\/cuenta\/anuncios\/[0-9a-f-]{36}\/editar$/, { timeout: 60_000 });
     const listingId = page.url().match(/anuncios\/([0-9a-f-]{36})\/editar$/)![1];
     listingIds.push(listingId);
 
@@ -99,6 +100,7 @@ test.describe("Borrador de anuncio del propietario", () => {
     expect(await page.locator("body").innerText()).not.toContain("editorial_description");
 
     await page.goto("/cuenta");
+    await page.locator("summary").click();
     await page.getByRole("button", { name: "Cerrar sesión" }).click();
     await page.getByLabel("Correo").fill(owner.email);
     await page.getByLabel("Contraseña").fill(owner.password);

@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export type ClaimActionState = { status: "idle" | "success" | "error"; message?: string };
+export type ReviewDecisionState = { status: "idle" | "success" | "error"; message?: string };
 
 export async function claimListingForReviewAction(
   listingId: string,
@@ -25,4 +27,33 @@ export async function claimListingForReviewAction(
   revalidatePath("/staff/anuncios");
   revalidatePath(`/staff/anuncios/${listingId}`);
   return { status: "success", message: "Revisión asignada a tu cuenta." };
+}
+
+export async function decideListingReviewAction(
+  listingId: string,
+  _previousState: ReviewDecisionState,
+  formData: FormData,
+): Promise<ReviewDecisionState> {
+  await requireRole(["staff", "admin"]);
+  if (!z.uuid().safeParse(listingId).success) return { status: "error", message: "El anuncio no es válido." };
+  const decision = formData.get("decision")?.toString();
+  if (!decision || !["approved", "changes_requested", "rejected"].includes(decision)) {
+    return { status: "error", message: "La decisión no es válida." };
+  }
+  const message = formData.get("message")?.toString().trim() || null;
+  if (decision !== "approved" && (message?.length ?? 0) < 20) {
+    return { status: "error", message: "Escribe un mensaje de al menos 20 caracteres." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("decide_listing_review", {
+    target_listing_id: listingId,
+    target_decision: decision,
+    target_message: message,
+  }).single();
+  if (error || !data) return { status: "error", message: "No pudimos registrar la decisión de forma segura." };
+  const result = data as { success: boolean; conflict_code: string | null };
+  if (!result.success) return { status: "error", message: result.conflict_code === "message_too_short" ? "Escribe un mensaje de al menos 20 caracteres." : result.conflict_code === "not_assigned" ? "Sólo el revisor asignado puede decidir." : "La revisión ya fue decidida por otra sesión." };
+  revalidatePath("/staff"); revalidatePath("/staff/anuncios"); revalidatePath(`/staff/anuncios/${listingId}`);
+  revalidatePath("/cuenta/anuncios"); revalidatePath(`/cuenta/anuncios/${listingId}/vista-previa`);
+  redirect(`/staff/anuncios/${listingId}?result=${decision}`);
 }

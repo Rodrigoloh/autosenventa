@@ -43,7 +43,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     getPrivateListingPhotos(id, viewer.id),
     status === "draft" ? getPendingListingPhotoUploads(id, viewer.id) : Promise.resolve([]),
   ]);
-  const readiness = status === "draft"
+  const readiness = status === "draft" || status === "changes_requested"
     ? await supabase.rpc("get_listing_submission_readiness", { target_listing_id: id })
     : { data: [] as string[] };
   const availablePhotoSlots = status === "draft"
@@ -69,7 +69,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           />
         ) : <ListingPhotoGallery photos={photos ?? []} />}
       </div>
-      {status === "draft" ? <ListingSubmissionPanel listingId={id} readinessCodes={(readiness.data as string[] | null) ?? []} /> : null}
+      {status === "draft" || status === "changes_requested" ? <ListingSubmissionPanel listingId={id} readinessCodes={(readiness.data as string[] | null) ?? []} /> : null}
       <ListingForm listing={data} categories={categories ?? []} brands={brands ?? []} models={models ?? []} />
     </section>
   );

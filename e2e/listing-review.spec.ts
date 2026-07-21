@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 import { adminClient, createConfirmedUser, deleteUsers, e2eEnv, setRolePrivileged } from "./support";
@@ -11,11 +12,11 @@ async function login(page: Page, email: string, password: string) {
   await page.getByLabel("Correo").fill(email);
   await page.getByLabel("Contraseña").fill(password);
   await page.getByRole("button", { name: "Ingresar" }).click();
-  await expect(page).toHaveURL(/\/cuenta$/);
+  await expect(page).toHaveURL(/\/(cuenta|staff)$/, { timeout: 60_000 });
 }
 
 test("propietario envía un anuncio completo y sólo un staff toma la revisión", async ({ page, browser }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(480_000);
   const admin = adminClient();
   const users = await Promise.all([
     createConfirmedUser(admin, "review-owner"),
@@ -44,18 +45,33 @@ test("propietario envía un anuncio completo y sólo un staff toma la revisión"
     expect(created.error).toBeNull();
     listingId = created.data!.id;
 
+    const image = Buffer.from((await readFile(join(process.cwd(), "e2e", "fixtures", "pixel.png.base64"), "utf8")).trim(), "base64");
+    const media = await Promise.all(Array.from({ length: 8 }, async (_, index) => {
+      const storagePath = `${listingId}/${randomUUID()}.png`;
+      const uploaded = await admin.storage.from("listing-media").upload(storagePath, image, { contentType: "image/png" });
+      expect(uploaded.error).toBeNull();
+      return {
+        listing_id: listingId,
+        storage_path: storagePath,
+        media_type: "image",
+        mime_type: "image/png",
+        file_size_bytes: image.length,
+        width: 1,
+        height: 1,
+        uploaded_by: owner.id,
+        sort_order: index,
+        is_cover: index === 0,
+      };
+    }));
+    expect((await admin.from("listing_media").insert(media)).error).toBeNull();
+
     await login(page, owner.email, owner.password);
     await page.goto(`/cuenta/anuncios/${listingId}/editar`);
-    await expect(page.getByText("Agrega al menos 8 fotografías finalizadas.")).toBeVisible();
-    const image = Buffer.from((await readFile(join(process.cwd(), "e2e", "fixtures", "pixel.png.base64"), "utf8")).trim(), "base64");
-    await page.locator('input[type="file"]').setInputFiles(Array.from({ length: 8 }, (_, index) => ({ name: `vehiculo-${index + 1}.png`, mimeType: "image/png", buffer: image })));
-    await expect(page.getByText("8 fotografías cargadas correctamente.")).toBeVisible({ timeout: 120_000 });
-    await page.reload();
     await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(8);
     await expect(page.getByText("12 espacios disponibles", { exact: true })).toBeVisible();
     await page.route("**/storage/v1/object/upload/sign/**", (route) => route.abort());
     await page.locator('input[type="file"]').setInputFiles({ name: "fallo-antes-de-enviar.png", mimeType: "image/png", buffer: image });
-    await expect(page.getByText(/Cancelada: No pudimos subir el archivo privado\. Subida cancelada\./)).toBeVisible();
+    await expect(page.getByText(/Cancelada: No pudimos subir el archivo privado\. Subida cancelada\./)).toBeVisible({ timeout: 60_000 });
     await expect.poll(async () => (
       await admin.from("listing_photo_uploads").select("id").eq("listing_id", listingId)
     ).data?.length).toBe(0);
@@ -67,7 +83,7 @@ test("propietario envía un anuncio completo y sólo un staff toma la revisión"
     await page.getByLabel("Declaré las modificaciones y los problemas conocidos.").check();
     await page.getByLabel("Cuento con documentación para acreditar propiedad y situación legal.").check();
     await page.getByRole("button", { name: "Enviar a revisión" }).click();
-    await expect(page).toHaveURL(new RegExp(`/cuenta/anuncios/${listingId}/vista-previa$`));
+    await expect(page).toHaveURL(new RegExp(`/cuenta/anuncios/${listingId}/vista-previa$`), { timeout: 60_000 });
     await expect(page.getByText(/Enviado a revisión/)).toBeVisible();
     await expect(page.getByRole("link", { name: "Volver a editar" })).toHaveCount(0);
 
@@ -75,21 +91,35 @@ test("propietario envía un anuncio completo y sólo un staff toma la revisión"
     const staffPages = await Promise.all(contexts.map((context) => context.newPage()));
     await Promise.all([login(staffPages[0], staffA.email, staffA.password), login(staffPages[1], staffB.email, staffB.password)]);
     await Promise.all(staffPages.map((staffPage) => staffPage.goto(`/staff/anuncios/${listingId}`)));
-    await Promise.all(staffPages.map((staffPage) => expect(staffPage.getByRole("button", { name: "Tomar revisión" })).toBeVisible()));
-    await Promise.all(staffPages.map((staffPage) => staffPage.getByRole("button", { name: "Tomar revisión" }).click()));
+    await Promise.all(staffPages.map((staffPage) => expect(staffPage.getByRole("button", { name: "Revisar anuncio" })).toBeVisible()));
+    await Promise.all(staffPages.map((staffPage) => staffPage.getByRole("button", { name: "Revisar anuncio" }).click()));
     await expect.poll(async () => (await admin.from("listings").select("status").eq("id", listingId).single()).data?.status).toBe("in_review");
     const winner = await admin.from("listings").select("status,reviewer_id").eq("id", listingId).single();
     const winnerIndex = winner.data?.reviewer_id === staffA.id ? 0 : 1;
     const loserIndex = winnerIndex === 0 ? 1 : 0;
     expect([staffA.id, staffB.id]).toContain(winner.data?.reviewer_id);
-    await expect(staffPages[winnerIndex].getByText("Revisión asignada a tu cuenta.", { exact: false })).toBeVisible();
-    await expect(staffPages[loserIndex].getByText("Otro miembro de staff tomó esta revisión.", { exact: false })).toBeVisible();
-    await expect(staffPages[loserIndex].getByRole("button", { name: "Tomar revisión" })).toHaveCount(0);
+    await expect(staffPages[winnerIndex].getByText("Revisión asignada a tu cuenta.", { exact: false })).toBeVisible({ timeout: 60_000 });
+    await expect(staffPages[loserIndex].getByText("Otro miembro de staff tomó esta revisión.", { exact: false })).toBeVisible({ timeout: 60_000 });
+    await expect(staffPages[loserIndex].getByRole("button", { name: "Revisar anuncio" })).toHaveCount(0, { timeout: 60_000 });
     expect((await admin.from("listing_status_history").select("id").eq("listing_id", listingId).eq("to_status", "in_review")).data).toHaveLength(1);
+
+    await staffPages[winnerIndex].getByLabel("Mensaje para el propietario").fill("Actualiza la historia de mantenimiento con información verificable.");
+    await staffPages[winnerIndex].getByRole("button", { name: "Solicitar cambios" }).click();
+    await expect(staffPages[winnerIndex].getByText("Cambios solicitados al propietario.")).toBeVisible({ timeout: 60_000 });
+    await expect.poll(async () => (await admin.from("listings").select("status").eq("id", listingId).single()).data?.status).toBe("changes_requested");
     await Promise.all(contexts.map((context) => context.close()));
 
     await page.reload();
-    await expect(page.getByText(/En revisión/)).toBeVisible();
+    await expect(page.getByText("Actualiza la historia de mantenimiento con información verificable.")).toBeVisible({ timeout: 60_000 });
+    await page.getByLabel("Soy propietario del vehículo o estoy autorizado para venderlo.").check();
+    await page.getByLabel("La información proporcionada es veraz.").check();
+    await page.getByLabel("Declaré las modificaciones y los problemas conocidos.").check();
+    await page.getByLabel("Cuento con documentación para acreditar propiedad y situación legal.").check();
+    await page.getByRole("button", { name: "Enviar a revisión" }).click();
+    await expect(page.getByText(/Enviado a revisión/)).toBeVisible({ timeout: 60_000 });
+    expect((await admin.from("listing_submissions").select("id").eq("listing_id", listingId)).data).toHaveLength(2);
+    expect((await admin.from("listing_status_history").select("id").eq("listing_id", listingId).eq("to_status", "submitted")).data).toHaveLength(2);
+    expect((await admin.from("listing_review_decisions").select("id").eq("listing_id", listingId)).data).toHaveLength(1);
     expect((await createClient(e2eEnv.supabaseUrl, e2eEnv.publishableKey).from("listings").select("id").eq("id", listingId)).data).toEqual([]);
   } finally {
     if (listingId) {

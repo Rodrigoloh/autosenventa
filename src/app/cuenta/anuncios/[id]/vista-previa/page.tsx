@@ -8,9 +8,10 @@ import { formatDate, formatMxn } from "@/lib/listing-display";
 import { getPrivateListingPhotos } from "@/lib/listing-media";
 import { EDITABLE_LISTING_STATUSES } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
+import type { ListingStatus } from "@/lib/constants";
 
 type PreviewListing = {
-  id: string; title: string; status: string; submitted_at: string | null; variant: string | null; year: number | null;
+  id: string; title: string; status: ListingStatus; submitted_at: string | null; variant: string | null; year: number | null;
   price_mxn: number | string | null; mileage_km: number | null; city: string | null; state_region: string | null;
   body_style: string | null; transmission: string | null; drivetrain: string | null; fuel_type: string | null; engine: string | null;
   owner_description: string | null; ownership_history: string | null; maintenance_history: string | null;
@@ -38,12 +39,19 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
   const listing = data as unknown as PreviewListing;
   const photos = await getPrivateListingPhotos(id, viewer.id);
   const editable = EDITABLE_LISTING_STATUSES.includes(listing.status as (typeof EDITABLE_LISTING_STATUSES)[number]);
-  const readiness = listing.status === "draft" ? await supabase.rpc("get_listing_submission_readiness", { target_listing_id: id }) : null;
+  const canSubmit = listing.status === "draft" || listing.status === "changes_requested";
+  const [readiness, decision] = await Promise.all([
+    canSubmit ? supabase.rpc("get_listing_submission_readiness", { target_listing_id: id }) : Promise.resolve(null),
+    supabase.from("listing_review_decisions").select("decision,message,created_at").eq("listing_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
 
   return (
     <article>
       <div className="border-2 border-amber-600 bg-amber-50 p-4 text-sm font-bold text-amber-950" role="note">Vista previa privada. Este anuncio todavía no está publicado.</div>
       {listing.status === "submitted" || listing.status === "in_review" ? <div className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">{listing.status === "submitted" ? "Enviado a revisión" : "En revisión"}{listing.submitted_at ? ` · ${formatDate(listing.submitted_at)}` : ""}</div> : null}
+      {listing.status === "changes_requested" ? <div className="mt-4 border border-amber-700 bg-amber-50 p-4 text-amber-950"><p className="font-black">Cambios solicitados</p><p className="mt-2 whitespace-pre-wrap">{decision.data?.message}</p><Link href={`/cuenta/anuncios/${id}/editar`} className="mt-3 inline-block font-bold underline">Editar y corregir</Link></div> : null}
+      {listing.status === "approved" ? <div className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-emerald-950"><p className="font-black">Tu anuncio fue aprobado.</p><p className="mt-1 text-sm">Todavía no está publicado; la publicación final es un flujo separado.</p></div> : null}
+      {listing.status === "rejected" ? <div className="mt-4 border border-red-800 bg-red-50 p-4 text-red-950"><p className="font-black">Tu anuncio fue rechazado.</p><p className="mt-2 whitespace-pre-wrap">{decision.data?.message}</p></div> : null}
       <header className="py-10">
         <p className="text-sm font-bold uppercase tracking-[0.18em] text-accent">{[listing.brands?.name, listing.models?.name].filter(Boolean).join(" · ") || "Vehículo por identificar"}</p>
         <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">{listing.title}</h1>
@@ -54,7 +62,7 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
         </div>
       </header>
       <ListingPhotoGallery photos={photos ?? []} />
-      {listing.status === "draft" ? <ListingSubmissionPanel listingId={id} readinessCodes={(readiness?.data as string[] | null) ?? []} /> : null}
+      {canSubmit && readiness ? <ListingSubmissionPanel listingId={id} readinessCodes={(readiness.data as string[] | null) ?? []} /> : null}
       <dl className="grid gap-x-8 border-b sm:grid-cols-2 lg:grid-cols-3">
         <Detail label="Marca" value={listing.brands?.name} /><Detail label="Modelo" value={listing.models?.name} />
         <Detail label="Variante" value={listing.variant} /><Detail label="Año" value={listing.year} />

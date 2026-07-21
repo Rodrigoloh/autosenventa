@@ -1,6 +1,7 @@
 export const ATTESTATION_VERSION = "2026-07-20-v1";
 
 export const READINESS_MESSAGES = {
+  missing_public_username: ["Perfil", "Completa tu username público."],
   missing_vehicle_fields: ["Vehículo", "Completa categoría, marca, modelo, año, kilometraje, color exterior, carrocería, transmisión y combustible."],
   invalid_taxonomy: ["Vehículo", "La categoría, marca o modelo ya no está activo o no corresponde."],
   invalid_price: ["Precio", "Ingresa un precio mayor que cero."],
@@ -21,7 +22,7 @@ export const READINESS_MESSAGES = {
 } as const;
 
 export type ReadinessCode = keyof typeof READINESS_MESSAGES;
-export const READINESS_CATEGORIES = ["Vehículo", "Precio", "Ubicación", "Historia", "Fotografías", "Declaraciones"] as const;
+export const READINESS_CATEGORIES = ["Perfil", "Vehículo", "Precio", "Ubicación", "Historia", "Fotografías", "Declaraciones"] as const;
 
 export function readinessItems(codes: readonly string[], includeAttestations = true) {
   const normalized = [...new Set(codes.filter((code): code is ReadinessCode => code in READINESS_MESSAGES))]

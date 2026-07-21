@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { submitListingForReviewAction, type SubmissionActionState } from "@/app/cuenta/anuncios/actions";
 import { SubmitButton } from "@/components/submit-button";
@@ -27,7 +28,7 @@ export function ListingSubmissionPanel({ listingId, readinessCodes }: { listingI
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {READINESS_CATEGORIES.map((category) => {
           const missing = items.filter((item) => item.category === category);
-          return <div key={category} className="border p-4"><h3 className="font-black">{category}</h3>{missing.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">{missing.map((item) => <li key={item.code}>{item.message}</li>)}</ul> : <p className="mt-2 text-sm font-bold text-emerald-700">Completo</p>}</div>;
+          return <div key={category} className="border p-4"><h3 className="font-black">{category}</h3>{missing.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">{missing.map((item) => <li key={item.code}>{item.message}{item.code === "missing_public_username" ? <> <Link href="/cuenta#completar-perfil" className="font-bold underline">Completar perfil</Link></> : null}</li>)}</ul> : <p className="mt-2 text-sm font-bold text-emerald-700">Completo</p>}</div>;
         })}
       </div>
       <form action={formAction} className="mt-7 space-y-4">

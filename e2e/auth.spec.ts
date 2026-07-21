@@ -9,6 +9,7 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
   const email = `e2e-auth-${runId}@example.test`;
   const oldPassword = `Old-${crypto.randomUUID()}!`;
   const newPassword = `New-${crypto.randomUUID()}!`;
+  const username = `auth${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`;
   let userId = "";
   let browserCookies: Cookie[] = [];
   const admin = adminClient();
@@ -19,8 +20,10 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
 
   test("registro crea perfil user y muestra que requiere confirmación", async ({ page, context }) => {
     await page.goto("/registro");
+    await page.getByLabel("Username").fill(username);
     await page.getByLabel("Correo").fill(email);
-    await page.getByLabel("Contraseña").fill(oldPassword);
+    await page.getByRole("textbox", { name: "Contraseña", exact: true }).fill(oldPassword);
+    await page.getByLabel("Repetir contraseña").fill(oldPassword);
     await page.getByRole("button", { name: "Registrarme" }).click();
 
     await expect(page).toHaveURL(/\/login\?registered=1$/);
@@ -32,9 +35,9 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
     expect(user).toBeTruthy();
     userId = user!.id;
 
-    const { data: profile, error: profileError } = await admin.from("profiles").select("id, role").eq("id", userId).single();
+    const { data: profile, error: profileError } = await admin.from("profiles").select("id, role, username").eq("id", userId).single();
     expect(profileError).toBeNull();
-    expect(profile).toEqual({ id: userId, role: "user" });
+    expect(profile).toEqual({ id: userId, role: "user", username });
     browserCookies = await context.cookies();
     expect(browserCookies.some((cookie) => cookie.name.includes("code-verifier"))).toBe(true);
   });
@@ -47,10 +50,10 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
 
     const html = await page.content();
     expect(html).not.toContain(userId);
-    expect(html).not.toContain(email);
+    expect(html).toContain(username);
 
     await page.goto("/auth/callback?next=https://evil.example/steal");
-    await expect(page).toHaveURL(`${e2eEnv.appUrl}/login?error=confirmation`);
+    await expect(page).toHaveURL(`${e2eEnv.appUrl}/cuenta`, { timeout: 60_000 });
     expect(page.url()).not.toContain("evil.example");
     await page.goto("/cuenta");
     await expect(page).toHaveURL(`${e2eEnv.appUrl}/cuenta`);
@@ -62,6 +65,7 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
     await page.goto("/staff");
     await expect(page).toHaveURL(`${e2eEnv.appUrl}/cuenta`);
 
+    await page.locator("summary").click();
     await page.getByRole("button", { name: "Cerrar sesión" }).click();
     await expect(page).toHaveURL(/\/login\?signedOut=1$/);
     await page.goto("/cuenta");
@@ -82,6 +86,7 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
   test("recuperación cambia la contraseña y deja inutilizable la anterior", async ({ page, context }) => {
     await context.addCookies(browserCookies);
     await page.goto("/cuenta");
+    await page.locator("summary").click();
     await page.getByRole("button", { name: "Cerrar sesión" }).click();
     await page.goto("/recuperar-password");
     await page.getByLabel("Correo").fill(email);

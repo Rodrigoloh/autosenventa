@@ -11,6 +11,14 @@ select set_config('app.role_change','allowed',true);
 update public.profiles set role='staff' where id='91000000-0000-4000-8000-000000000003';
 update public.profiles set role='admin' where id='91000000-0000-4000-8000-000000000004';
 select set_config('app.role_change','',true);
+select set_config('app.username_assignment','allowed',true);
+update public.profiles set username=case id
+  when '91000000-0000-4000-8000-000000000001' then 'phase4owner'
+  when '91000000-0000-4000-8000-000000000002' then 'phase4other'
+  when '91000000-0000-4000-8000-000000000003' then 'phase4staff'
+  else 'phase4admin' end
+where id::text like '91000000%';
+select set_config('app.username_assignment','',true);
 
 insert into public.listings(id,owner_id,title,category_id,brand_id,model_id,year,price_mxn,mileage_km,city,state_region,
  exterior_color,body_style,transmission,fuel_type,owner_description,ownership_history,maintenance_history,modifications,known_issues)
