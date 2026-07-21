@@ -52,6 +52,16 @@ test("propietario envía un anuncio completo y sólo un staff toma la revisión"
     await expect(page.getByText("8 fotografías cargadas correctamente.")).toBeVisible({ timeout: 120_000 });
     await page.reload();
     await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(8);
+    await expect(page.getByText("12 espacios disponibles", { exact: true })).toBeVisible();
+    await page.route("**/storage/v1/object/upload/sign/**", (route) => route.abort());
+    await page.locator('input[type="file"]').setInputFiles({ name: "fallo-antes-de-enviar.png", mimeType: "image/png", buffer: image });
+    await expect(page.getByText(/Cancelada: No pudimos subir el archivo privado\. Subida cancelada\./)).toBeVisible();
+    await expect.poll(async () => (
+      await admin.from("listing_photo_uploads").select("id").eq("listing_id", listingId)
+    ).data?.length).toBe(0);
+    await expect(page.getByText("Finaliza o cancela todas las subidas y eliminaciones pendientes.")).toHaveCount(0);
+    await expect(page.getByText("12 espacios disponibles", { exact: true })).toBeVisible();
+    await page.unroute("**/storage/v1/object/upload/sign/**");
     await page.getByLabel("Soy propietario del vehículo o estoy autorizado para venderlo.").check();
     await page.getByLabel("La información proporcionada es veraz.").check();
     await page.getByLabel("Declaré las modificaciones y los problemas conocidos.").check();

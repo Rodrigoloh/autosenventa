@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { adminClient, createConfirmedUser, deleteUsers } from "./support";
 
@@ -21,7 +22,7 @@ test.describe("Fotografías privadas del borrador", () => {
   });
 
   test("sube, administra, previsualiza y elimina un borrador con fotografías", async ({ page }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(240_000);
     const owner = await createConfirmedUser(admin, "photo-ui-owner");
     userIds.push(owner.id);
     const listing = await admin.from("listings").insert({ owner_id: owner.id, title: "Draft fotos UI" }).select("id").single();
@@ -70,7 +71,7 @@ test.describe("Fotografías privadas del borrador", () => {
       { name: "lateral.png", mimeType: "image/png", buffer: image },
       { name: "interior.png", mimeType: "image/png", buffer: image },
     ]);
-    await expect(page.getByText("2 fotografías cargadas correctamente.")).toBeVisible();
+    await expect(page.getByText("2 fotografías cargadas correctamente.")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(3);
     await expect(page.getByText("17 espacios disponibles", { exact: true })).toBeVisible();
 
@@ -103,17 +104,69 @@ test.describe("Fotografías privadas del borrador", () => {
     await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
 
     await page.goto(`/cuenta/anuncios/${listingId}/editar`);
+    await page.unroute("**/storage/v1/object/upload/sign/**");
+    await page.route("**/storage/v1/object/upload/sign/**", (route) => route.abort());
+    await page.locator('input[type="file"]').setInputFiles({ name: "fallo-red.png", mimeType: "image/png", buffer: image });
+    await expect(page.getByText(/Cancelada: No pudimos subir el archivo privado\. Subida cancelada\./)).toBeVisible();
+    await expect(page.getByText("18 espacios disponibles", { exact: true })).toBeVisible();
+    await expect(page.getByText("Finaliza o cancela todas las subidas y eliminaciones pendientes.")).toHaveCount(0);
+    await expect.poll(async () => (
+      await admin.from("listing_photo_uploads").select("id").eq("listing_id", listingId)
+    ).data?.length).toBe(0);
+    await page.unroute("**/storage/v1/object/upload/sign/**");
+
     await page.locator('input[type="file"]').setInputFiles({
       name: "contenido-falso.png",
       mimeType: "image/png",
       buffer: Buffer.from("no-es-una-imagen"),
     });
-    await expect(page.getByText(/Error: El contenido real no coincide/)).toBeVisible();
+    await expect(page.getByText(/Cancelada: El contenido real no coincide.*Subida cancelada\./)).toBeVisible();
     await expect(page.getByRole("img", { name: /Fotografía/ })).toHaveCount(2);
     expect((await admin.from("listing_media").select("id").eq("listing_id", listingId)).data).toHaveLength(2);
     expect((await admin.from("listing_photo_uploads").select("id").eq("listing_id", listingId)).data).toHaveLength(0);
     const objects = await admin.storage.from("listing-media").list(listingId, { limit: 100 });
     expect(objects.data).toHaveLength(2);
+
+    const expiredReservationId = randomUUID();
+    const expiredPath = `${listingId}/${randomUUID()}.png`;
+    expect((await admin.storage.from("listing-media").upload(expiredPath, image, { contentType: "image/png" })).error).toBeNull();
+    expect((await admin.from("listing_photo_uploads").insert({
+      id: expiredReservationId,
+      listing_id: listingId,
+      requested_by: owner.id,
+      storage_path: expiredPath,
+      expected_mime_type: "image/png",
+      expected_size_bytes: image.length,
+      created_at: new Date(Date.now() - 120_000).toISOString(),
+      expires_at: new Date(Date.now() - 60_000).toISOString(),
+    })).error).toBeNull();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Subidas pendientes" })).toBeVisible();
+    await expect(page.getByText(/Expirada/)).toBeVisible();
+    await page.getByRole("button", { name: "Cancelar y limpiar subida" }).click();
+    await expect.poll(async () => (
+      await admin.from("listing_photo_uploads").select("id").eq("id", expiredReservationId)
+    ).data?.length).toBe(0);
+    const storedAfterCleanup = await admin.storage.from("listing-media").list(listingId, { limit: 100 });
+    expect(storedAfterCleanup.data?.some((item) => `${listingId}/${item.name}` === expiredPath)).toBe(false);
+
+    const missingObjectReservationId = randomUUID();
+    expect((await admin.from("listing_photo_uploads").insert({
+      id: missingObjectReservationId,
+      listing_id: listingId,
+      requested_by: owner.id,
+      storage_path: `${listingId}/${randomUUID()}.png`,
+      expected_mime_type: "image/png",
+      expected_size_bytes: image.length,
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    })).error).toBeNull();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Subidas pendientes" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancelar y limpiar subida" }).click();
+    await expect.poll(async () => (
+      await admin.from("listing_photo_uploads").select("id").eq("id", missingObjectReservationId)
+    ).data?.length).toBe(0);
+    await expect(page.getByText("Finaliza o cancela todas las subidas y eliminaciones pendientes.")).toHaveCount(0);
 
     await page.getByLabel("Confirmo que quiero eliminar este borrador.").check();
     await page.getByRole("button", { name: "Eliminar borrador" }).click();

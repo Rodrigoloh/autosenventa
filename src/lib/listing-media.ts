@@ -14,6 +14,15 @@ export type PrivateListingPhoto = {
   deletionPending: boolean;
 };
 
+export type PendingListingPhotoUpload = {
+  id: string;
+  expectedMimeType: string;
+  expectedSizeBytes: number;
+  expiresAt: string;
+  createdAt: string;
+  expired: boolean;
+};
+
 export async function getPrivateListingPhotos(listingId: string, viewerId: string) {
   const supabase = await createClient();
   const { data: listing } = await supabase.from("listings")
@@ -81,6 +90,26 @@ export async function getPrivateListingPhotoAvailability(
     .eq("requested_by", viewerId)
     .gt("expires_at", new Date().toISOString());
   return Math.max(0, MAX_LISTING_PHOTOS - finalizedCount - (count ?? 0));
+}
+
+export async function getPendingListingPhotoUploads(listingId: string, viewerId: string) {
+  const supabase = await createClient();
+  const { data: listing } = await supabase.from("listings").select("id,status,deletion_started_at")
+    .eq("id", listingId).eq("owner_id", viewerId).maybeSingle();
+  if (!listing || listing.status !== "draft" || listing.deletion_started_at) return [];
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("listing_photo_uploads")
+    .select("id,expected_mime_type,expected_size_bytes,expires_at,created_at")
+    .eq("listing_id", listingId).eq("requested_by", viewerId).order("created_at");
+  if (error) throw new Error("No pudimos consultar las subidas pendientes.");
+  return (data ?? []).map((item) => ({
+    id: item.id,
+    expectedMimeType: item.expected_mime_type,
+    expectedSizeBytes: item.expected_size_bytes,
+    expiresAt: item.expires_at,
+    createdAt: item.created_at,
+    expired: new Date(item.expires_at).getTime() <= Date.now(),
+  })) satisfies PendingListingPhotoUpload[];
 }
 
 export async function getStaffListingPhotos(listingId: string) {

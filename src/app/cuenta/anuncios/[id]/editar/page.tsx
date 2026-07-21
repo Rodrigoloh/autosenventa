@@ -6,9 +6,10 @@ import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
 import { ListingPhotoManager } from "@/components/listing-photo-manager";
 import { ListingPhotoUploader } from "@/components/listing-photo-uploader";
 import { ListingSubmissionPanel } from "@/components/listing-submission-panel";
+import { PendingPhotoUploads } from "@/components/pending-photo-uploads";
 import { requireUser } from "@/lib/auth";
 import { LISTING_STATUS_LABELS } from "@/lib/listing-display";
-import { getPrivateListingPhotoAvailability, getPrivateListingPhotos } from "@/lib/listing-media";
+import { getPendingListingPhotoUploads, getPrivateListingPhotoAvailability, getPrivateListingPhotos } from "@/lib/listing-media";
 import { EDITABLE_LISTING_STATUSES } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
 import type { ListingStatus } from "@/lib/constants";
@@ -35,11 +36,12 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     );
   }
 
-  const [{ data: categories }, { data: brands }, { data: models }, photos] = await Promise.all([
+  const [{ data: categories }, { data: brands }, { data: models }, photos, pendingUploads] = await Promise.all([
     supabase.from("categories").select("id,name").eq("active", true).order("name"),
     supabase.from("brands").select("id,name").eq("active", true).order("name"),
     supabase.from("models").select("id,brand_id,name").eq("active", true).order("name"),
     getPrivateListingPhotos(id, viewer.id),
+    status === "draft" ? getPendingListingPhotoUploads(id, viewer.id) : Promise.resolve([]),
   ]);
   const readiness = status === "draft"
     ? await supabase.rpc("get_listing_submission_readiness", { target_listing_id: id })
@@ -56,6 +58,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         <p className="mt-3 max-w-2xl leading-7 text-stone-600">Guarda tu avance cuando quieras. El anuncio sigue siendo privado y su estado no cambiará.</p>
       </div>
       <div className="mt-10 space-y-8">
+        {status === "draft" ? <PendingPhotoUploads uploads={pendingUploads} /> : null}
         {status === "draft" ? <ListingPhotoUploader listingId={id} initialAvailableSlots={availablePhotoSlots} /> : null}
         {status === "draft" ? (
           <ListingPhotoManager

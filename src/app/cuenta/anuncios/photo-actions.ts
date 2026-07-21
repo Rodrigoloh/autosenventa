@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
+import { cleanupListingPhotoUpload } from "@/lib/listing-photo-upload-cleanup.server";
 import { photoReorderRequestSchema, photoUploadRequestSchema } from "@/lib/listing-photo-validation";
 import { validateUploadedPhoto } from "@/lib/listing-photo-validation.server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,7 +14,7 @@ const mediaIdSchema = z.uuid();
 
 export type ReservePhotoResult =
   | { ok: true; reservationId: string; storagePath: string; token: string }
-  | { ok: false; message: string };
+  | { ok: false; message: string; reservationId?: string; cleanupCompleted?: boolean };
 
 export type FinalizePhotoResult =
   | { ok: true; mediaId: string }
@@ -61,8 +62,15 @@ export async function reservePhotoUploadAction(input: unknown): Promise<ReserveP
   const signed = await supabase.storage.from("listing-media")
     .createSignedUploadUrl(reservation.storage_path, { upsert: false });
   if (signed.error || !signed.data?.token) {
-    await supabase.rpc("cancel_listing_photo_upload", { target_reservation_id: reservation.reservation_id });
-    return { ok: false, message: "No pudimos preparar la subida privada." };
+    const cleanup = await cleanupListingPhotoUpload(reservation.reservation_id, viewer.id);
+    return {
+      ok: false,
+      message: cleanup.ok
+        ? "No pudimos preparar la subida privada. Subida cancelada."
+        : "No pudimos preparar la subida privada.",
+      reservationId: cleanup.ok ? undefined : reservation.reservation_id,
+      cleanupCompleted: cleanup.ok,
+    };
   }
 
   return {
@@ -73,22 +81,16 @@ export async function reservePhotoUploadAction(input: unknown): Promise<ReserveP
   };
 }
 
-export async function cancelPhotoUploadAction(reservationId: string) {
+export async function cancelPhotoUploadAction(reservationId: string): Promise<ManagePhotoResult> {
   const viewer = await requireUser();
-  if (!reservationIdSchema.safeParse(reservationId).success) return;
-  const admin = createAdminClient();
-  const { data } = await admin.from("listing_photo_uploads")
-    .select("id,requested_by,storage_path")
-    .eq("id", reservationId)
-    .eq("requested_by", viewer.id)
-    .maybeSingle();
-  if (!data) return;
-  const removed = await admin.storage.from("listing-media").remove([data.storage_path]);
-  if (!removed.error) {
-    await admin.from("listing_photo_uploads").delete()
-      .eq("id", data.id)
-      .eq("requested_by", viewer.id);
+  if (!reservationIdSchema.safeParse(reservationId).success) {
+    return { ok: false, message: "La reserva de subida no es válida." };
   }
+  const result = await cleanupListingPhotoUpload(reservationId, viewer.id);
+  if (result.listingId) revalidateListingPhotos(result.listingId);
+  return result.ok
+    ? { ok: true, message: result.message }
+    : { ok: false, message: result.message };
 }
 
 async function cleanupRejectedUpload(

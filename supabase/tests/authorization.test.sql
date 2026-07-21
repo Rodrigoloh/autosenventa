@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(65);
+select plan(67);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
 ('11111111-1111-4111-8111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'user1@example.test', 'not-a-real-password', now(), '{}', '{"role":"admin"}', now(), now()),
@@ -236,6 +236,28 @@ select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111'
 select throws_ok(
   $$insert into storage.objects(bucket_id,name) values('listing-media',current_setting('app.expired_reservation_path'))$$,
   '42501', null, '55 reserva expirada no autoriza subida'
+);
+select is(
+  public.cancel_listing_photo_upload(current_setting('app.expired_reservation_id')::uuid),
+  true,
+  'propietario puede cancelar una reserva expirada'
+);
+
+reset role;
+insert into public.listing_photo_uploads(
+  id,listing_id,requested_by,storage_path,expected_mime_type,expected_size_bytes,expires_at
+) values(
+  '14141414-1414-4414-8414-141414141414','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  '11111111-1111-4111-8111-111111111111',
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/abababab-abab-4bab-8bab-abababababab.jpg',
+  'image/jpeg',1024,now()+interval '5 minutes'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+select is(
+  public.cancel_listing_photo_upload('14141414-1414-4414-8414-141414141414'),
+  false,
+  'reserva vinculada a un medio finalizado no puede cancelarse'
 );
 
 reset role;

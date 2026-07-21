@@ -14,14 +14,15 @@ import {
 } from "@/lib/listing-photo-validation";
 import { createClient } from "@/lib/supabase/client";
 
-type UploadStatus = "pendiente" | "subiendo" | "validando" | "completada" | "error";
-type UploadItem = { id: string; name: string; status: UploadStatus; message?: string };
+type UploadStatus = "pendiente" | "subiendo" | "validando" | "completada" | "cancelada" | "error";
+type UploadItem = { id: string; name: string; status: UploadStatus; message?: string; reservationId?: string };
 
 const STATUS_LABELS: Record<UploadStatus, string> = {
   pendiente: "Pendiente",
   subiendo: "Subiendo",
   validando: "Validando",
   completada: "Completada",
+  cancelada: "Cancelada",
   error: "Error",
 };
 
@@ -29,12 +30,33 @@ export function ListingPhotoUploader({ listingId, initialAvailableSlots }: { lis
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<UploadItem[]>([]);
-  const [availableSlots, setAvailableSlots] = useState(initialAvailableSlots);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const availableSlots = initialAvailableSlots;
 
   function updateItem(id: string, values: Partial<UploadItem>) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...values } : item));
+  }
+
+  async function cleanFailedReservation(itemId: string, reservationId: string, failureMessage: string) {
+    const cleanup = await cancelPhotoUploadAction(reservationId);
+    if (cleanup.ok) {
+      updateItem(itemId, {
+        status: "cancelada",
+        message: `${failureMessage} Subida cancelada.`,
+        reservationId: undefined,
+      });
+      setNotice("La subida fallida se canceló y el espacio volvió a estar disponible.");
+      router.refresh();
+      return;
+    }
+    updateItem(itemId, {
+      status: "error",
+      message: `${failureMessage} ${cleanup.message}`,
+      reservationId,
+    });
+    setNotice("La reserva sigue pendiente. Reintenta la limpieza.");
+    router.refresh();
   }
 
   async function processFile(file: File, itemId: string) {
@@ -54,11 +76,16 @@ export function ListingPhotoUploader({ listingId, initialAvailableSlots }: { lis
 
     const reservation = await reservePhotoUploadAction(parsed.data);
     if (!reservation.ok) {
-      updateItem(itemId, { status: "error", message: reservation.message });
+      updateItem(itemId, {
+        status: reservation.cleanupCompleted ? "cancelada" : "error",
+        message: reservation.message,
+        reservationId: reservation.reservationId,
+      });
+      router.refresh();
       return false;
     }
 
-    updateItem(itemId, { status: "subiendo", message: undefined });
+    updateItem(itemId, { status: "subiendo", message: undefined, reservationId: reservation.reservationId });
     const supabase = createClient();
     const uploaded = await supabase.storage.from("listing-media").uploadToSignedUrl(
       reservation.storagePath,
@@ -67,20 +94,18 @@ export function ListingPhotoUploader({ listingId, initialAvailableSlots }: { lis
       { contentType: parsed.data.mimeType },
     );
     if (uploaded.error) {
-      await cancelPhotoUploadAction(reservation.reservationId);
-      updateItem(itemId, { status: "error", message: "No pudimos subir el archivo privado." });
+      await cleanFailedReservation(itemId, reservation.reservationId, "No pudimos subir el archivo privado.");
       return false;
     }
 
     updateItem(itemId, { status: "validando" });
     const finalized = await finalizePhotoUploadAction(reservation.reservationId);
     if (!finalized.ok) {
-      updateItem(itemId, { status: "error", message: finalized.message });
+      await cleanFailedReservation(itemId, reservation.reservationId, finalized.message);
       return false;
     }
 
-    updateItem(itemId, { status: "completada" });
-    setAvailableSlots((current) => Math.max(0, current - 1));
+    updateItem(itemId, { status: "completada", reservationId: undefined });
     router.refresh();
     return true;
   }
@@ -138,6 +163,25 @@ export function ListingPhotoUploader({ listingId, initialAvailableSlots }: { lis
               <span role={item.status === "error" ? "alert" : "status"} className={item.status === "error" ? "text-red-700" : "text-stone-600"}>
                 {STATUS_LABELS[item.status]}{item.message ? `: ${item.message}` : ""}
               </span>
+              {item.status === "error" && item.reservationId ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void cleanFailedReservation(item.id, item.reservationId!, "No pudimos completar la limpieza anterior.")}
+                  className="font-bold text-red-800 underline disabled:opacity-50"
+                >
+                  Reintentar limpieza
+                </button>
+              ) : null}
+              {item.status === "cancelada" ? (
+                <button
+                  type="button"
+                  onClick={() => setItems((current) => current.filter((candidate) => candidate.id !== item.id))}
+                  className="font-bold underline"
+                >
+                  Descartar
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>
