@@ -11,6 +11,7 @@ import {
   photoUploadRequestSchema,
 } from "../src/lib/listing-photo-validation";
 import { DELETABLE_LISTING_STATUSES, EDITABLE_LISTING_STATUSES, listingDraftSchema, provisionalTitle } from "../src/lib/listing-validation";
+import { readinessItems, textMeetsMinimum, validReviewPrice } from "../src/lib/listing-review";
 
 const user = { id: "11111111-1111-4111-8111-111111111111", role: "user" as const, display_name: null };
 const staff = { ...user, role: "staff" as const };
@@ -91,6 +92,21 @@ test("genera título tolerante y calcula avance", () => {
 test("mantiene separados estados editables y eliminables", () => {
   assert.deepEqual(EDITABLE_LISTING_STATUSES, ["draft", "changes_requested"]);
   assert.deepEqual(DELETABLE_LISTING_STATUSES, ["draft"]);
+});
+
+test("mapea la checklist de revisión y conserva códigos estables", () => {
+  const items = readinessItems(["invalid_price", "description_too_short", "invalid_price"]);
+  assert.deepEqual(items.map((item) => item.code), ["invalid_price", "description_too_short", "missing_attestations"]);
+  assert.equal(items.find((item) => item.code === "invalid_price")?.category, "Precio");
+});
+
+test("valida mínimos de historia, precio y declaraciones para revisión", () => {
+  assert.equal(textMeetsMinimum("x".repeat(120), 120), true);
+  assert.equal(textMeetsMinimum(`  ${"x".repeat(119)}  `, 120), false);
+  assert.equal(validReviewPrice(1), true);
+  assert.equal(validReviewPrice("420000"), true);
+  assert.equal(validReviewPrice(0), false);
+  assert.equal(validReviewPrice(null), false);
 });
 
 test("valida nombre, extensión, MIME y tamaño de fotografías", () => {

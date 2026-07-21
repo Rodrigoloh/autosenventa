@@ -16,7 +16,7 @@ test.describe("Autorización real por Data API", () => {
     await deleteUsers(admin, userIds.reverse());
   });
 
-  test("RLS, campos reservados, RPC y publicación atraviesan PostgREST", async () => {
+  test("RLS, campos reservados y hardening de transiciones atraviesan PostgREST", async () => {
     const userA = await createConfirmedUser(admin, "owner-a");
     const userB = await createConfirmedUser(admin, "owner-b");
     const staff = await createConfirmedUser(admin, "staff");
@@ -82,15 +82,11 @@ test.describe("Autorización real por Data API", () => {
     const reservedRpc = await clientA.rpc("set_user_role", { target_user: userA.id, target_role: "admin" });
     expect(reservedRpc.error).toBeTruthy();
 
-    expect((await clientA.rpc("transition_listing", { target_id: listingId, target_status: "submitted" })).error).toBeNull();
-    expect((await staffClient.from("listings").select("id, status").eq("id", listingId).single()).data?.status).toBe("submitted");
-    expect((await clientA.from("listings").delete().eq("id", listingId).select()).error).toBeTruthy();
+    expect((await clientA.rpc("transition_listing", { target_id: listingId, target_status: "submitted" })).error).toBeTruthy();
     expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "published" })).error).toBeTruthy();
-    expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "in_review" })).error).toBeNull();
-    expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "approved" })).error).toBeNull();
+    expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "in_review" })).error).toBeTruthy();
+    expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "approved" })).error).toBeTruthy();
     expect((await anonymousClient().from("listings").select("id").eq("id", listingId)).data).toEqual([]);
-    expect((await staffClient.rpc("transition_listing", { target_id: listingId, target_status: "published" })).error).toBeNull();
-    expect((await anonymousClient().from("listings").select("id").eq("id", listingId)).data).toEqual([{ id: listingId }]);
 
     const disposable = await clientA.from("listings").insert({ owner_id: userA.id, title: "Draft para borrar" }).select("id").single();
     expect(disposable.error).toBeNull();

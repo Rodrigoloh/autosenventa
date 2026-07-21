@@ -45,11 +45,12 @@ test.describe("Fotografías privadas del borrador", () => {
     });
     await page.locator('input[type="file"]').setInputFiles({ name: "vehiculo.png", mimeType: "image/png", buffer: image });
     await expect(page.getByText("Subiendo", { exact: true })).toBeVisible();
-    await expect(page.getByText("Validando", { exact: true })).toBeVisible();
     await expect(page.getByText("Completada", { exact: true })).toBeVisible();
     await expect(page.getByText("1 fotografía cargada correctamente.")).toBeVisible();
     await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
     await expect(page.getByText("19 espacios disponibles", { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("img", { name: "Fotografía 1 del vehículo, portada" })).toBeVisible();
 
     const stored = await admin.from("listing_media")
       .select("storage_path,mime_type,file_size_bytes,width,height,sort_order,is_cover")

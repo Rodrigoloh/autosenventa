@@ -44,8 +44,16 @@ select throws_ok($$update public.listings set is_featured=true where id='aaaaaaa
 select throws_ok($$update public.listings set editorial_description='Editorial falsa' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, 'P0001', 'Reserved editorial fields cannot be changed', '14 usuario no edita campo editorial');
 select throws_ok($$update public.listings set created_at='2000-01-01' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, 'P0001', 'Reserved timestamps cannot be changed', 'usuario no altera created_at');
 select throws_ok($$update public.listings set updated_at='2000-01-01' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, 'P0001', 'Reserved timestamps cannot be changed', 'usuario no altera updated_at');
-select throws_ok($$update public.listings set status='published' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, '42501', null, '15 update directo de estado falla');
-select lives_ok($$select public.transition_listing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','submitted')$$, 'usuario envia borrador');
+select throws_ok($$update public.listings set status='published' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$, 'P0001', 'Use a narrow listing transition function', '15 update directo de estado falla');
+select throws_ok($$select public.transition_listing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','submitted')$$, '42501', null, 'usuario no ejecuta transición genérica');
+reset role;
+select set_config('app.status_transition','allowed',true);
+update public.listings set status='submitted' where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+select set_config('app.status_transition','',true);
+insert into public.listing_status_history(listing_id,from_status,to_status,actor_id)
+values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','draft','submitted','11111111-1111-4111-8111-111111111111');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 select throws_ok($$delete from public.listings where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' returning id$$, '42501', null, '15b usuario no elimina enviado directamente');
 
 reset role;
@@ -68,10 +76,11 @@ select is((select count(*) from public.listings where id='f1f1f1f1-f1f1-4f1f-8f1
 select is((select count(*) from public.listing_media where listing_id='f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1'), 0::bigint, '15e media relacional se elimina en cascada');
 select is((select count(*) from public.listing_status_history where listing_id='f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1') + (select count(*) from public.staff_notes where listing_id='f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1'), 0::bigint, '15f relaciones dependientes se eliminan en cascada');
 
+set local role authenticated;
 select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);
 select is((select count(*) from public.listings where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 1::bigint, '17 staff lee anuncio enviado');
-select lives_ok($$select public.transition_listing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','in_review')$$, '18 staff ejecuta transicion valida');
-select throws_ok($$select public.transition_listing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','published')$$, 'P0001', 'Invalid status transition', '19 transicion invalida falla');
+select is((select success from public.claim_listing_for_review('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')),true,'18 staff ejecuta toma válida');
+select throws_ok($$select public.transition_listing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','published')$$, '42501', null, '19 transición genérica no es ejecutable');
 select is((select count(*) from public.listing_status_history where listing_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 2::bigint, '20 cada transicion crea historial');
 
 reset role;

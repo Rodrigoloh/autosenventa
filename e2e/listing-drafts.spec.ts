@@ -73,11 +73,11 @@ test.describe("Borrador de anuncio del propietario", () => {
     await page.getByLabel("Descripción general").fill("Un roadster cuidado y usado los fines de semana.");
     await page.getByLabel("Historia de propiedad").fill("Dos propietarios desde nuevo.");
     await page.getByLabel("Historial de mantenimiento").fill("Servicios documentados.");
-    await page.getByLabel("Modificaciones").fill("Suspensión reversible.");
-    await page.getByLabel("Problemas conocidos").fill("Desgaste menor en el volante.");
+    await page.getByRole("textbox", { name: "Modificaciones", exact: true }).fill("Suspensión reversible.");
+    await page.getByRole("textbox", { name: "Problemas conocidos", exact: true }).fill("Desgaste menor en el volante.");
     await page.getByLabel("Motivo de venta").fill("Cambio de proyecto.");
     await page.getByRole("button", { name: "Guardar borrador" }).click();
-    await expect(page.getByRole("status")).toHaveText("Borrador guardado correctamente.");
+    await expect(page.getByText("Borrador guardado correctamente.", { exact: true })).toBeVisible();
 
     const saved = await admin.from("listings").select("title,status,owner_id,price_mxn,mileage_km,owner_description").eq("id", listingId).single();
     expect(saved.data).toMatchObject({

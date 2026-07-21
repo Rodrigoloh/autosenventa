@@ -2,14 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
+import { ListingSubmissionPanel } from "@/components/listing-submission-panel";
 import { requireUser } from "@/lib/auth";
-import { formatMxn } from "@/lib/listing-display";
+import { formatDate, formatMxn } from "@/lib/listing-display";
 import { getPrivateListingPhotos } from "@/lib/listing-media";
 import { EDITABLE_LISTING_STATUSES } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
 
 type PreviewListing = {
-  id: string; title: string; status: string; variant: string | null; year: number | null;
+  id: string; title: string; status: string; submitted_at: string | null; variant: string | null; year: number | null;
   price_mxn: number | string | null; mileage_km: number | null; city: string | null; state_region: string | null;
   body_style: string | null; transmission: string | null; drivetrain: string | null; fuel_type: string | null; engine: string | null;
   owner_description: string | null; ownership_history: string | null; maintenance_history: string | null;
@@ -31,16 +32,18 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
   if (!z.uuid().safeParse(id).success) notFound();
   const supabase = await createClient();
   const { data } = await supabase.from("listings").select(
-    "id,title,status,variant,year,price_mxn,mileage_km,city,state_region,body_style,transmission,drivetrain,fuel_type,engine,owner_description,ownership_history,maintenance_history,modifications,known_issues,sale_reason,brands(name),models(name)",
+    "id,title,status,submitted_at,variant,year,price_mxn,mileage_km,city,state_region,body_style,transmission,drivetrain,fuel_type,engine,owner_description,ownership_history,maintenance_history,modifications,known_issues,sale_reason,brands(name),models(name)",
   ).eq("id", id).eq("owner_id", viewer.id).maybeSingle();
   if (!data) notFound();
   const listing = data as unknown as PreviewListing;
   const photos = await getPrivateListingPhotos(id, viewer.id);
   const editable = EDITABLE_LISTING_STATUSES.includes(listing.status as (typeof EDITABLE_LISTING_STATUSES)[number]);
+  const readiness = listing.status === "draft" ? await supabase.rpc("get_listing_submission_readiness", { target_listing_id: id }) : null;
 
   return (
     <article>
       <div className="border-2 border-amber-600 bg-amber-50 p-4 text-sm font-bold text-amber-950" role="note">Vista previa privada. Este anuncio todavía no está publicado.</div>
+      {listing.status === "submitted" || listing.status === "in_review" ? <div className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">{listing.status === "submitted" ? "Enviado a revisión" : "En revisión"}{listing.submitted_at ? ` · ${formatDate(listing.submitted_at)}` : ""}</div> : null}
       <header className="py-10">
         <p className="text-sm font-bold uppercase tracking-[0.18em] text-accent">{[listing.brands?.name, listing.models?.name].filter(Boolean).join(" · ") || "Vehículo por identificar"}</p>
         <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">{listing.title}</h1>
@@ -51,6 +54,7 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
         </div>
       </header>
       <ListingPhotoGallery photos={photos ?? []} />
+      {listing.status === "draft" ? <ListingSubmissionPanel listingId={id} readinessCodes={(readiness?.data as string[] | null) ?? []} /> : null}
       <dl className="grid gap-x-8 border-b sm:grid-cols-2 lg:grid-cols-3">
         <Detail label="Marca" value={listing.brands?.name} /><Detail label="Modelo" value={listing.models?.name} />
         <Detail label="Variante" value={listing.variant} /><Detail label="Año" value={listing.year} />

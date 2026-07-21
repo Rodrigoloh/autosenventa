@@ -12,8 +12,43 @@ import {
 } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ATTESTATION_VERSION } from "@/lib/listing-review";
 
 const listingIdSchema = z.uuid();
+
+export type SubmissionActionState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+  readinessCodes?: string[];
+};
+
+export async function submitListingForReviewAction(
+  listingId: string,
+  _previousState: SubmissionActionState,
+  formData: FormData,
+): Promise<SubmissionActionState> {
+  await requireUser();
+  if (!listingIdSchema.safeParse(listingId).success) return { status: "error", message: "El anuncio no es válido." };
+  const flags = {
+    attest_owner_authorized: formData.get("attest_owner_authorized") === "yes",
+    attest_information_truthful: formData.get("attest_information_truthful") === "yes",
+    attest_modifications_and_issues_disclosed: formData.get("attest_modifications_and_issues_disclosed") === "yes",
+    attest_legal_documentation: formData.get("attest_legal_documentation") === "yes",
+  };
+  const supabase = await createClient();
+  const result = await supabase.rpc("submit_listing_for_review", {
+    target_listing_id: listingId,
+    ...flags,
+    target_attestation_version: ATTESTATION_VERSION,
+  }).single();
+  if (result.error || !result.data) return { status: "error", message: "No pudimos enviar el anuncio de forma segura." };
+  const response = result.data as { success: boolean; readiness_codes: string[] };
+  if (!response.success) return { status: "error", message: "El anuncio todavía no está listo para revisión.", readinessCodes: response.readiness_codes };
+  revalidatePath("/cuenta/anuncios");
+  revalidatePath(`/cuenta/anuncios/${listingId}/editar`);
+  revalidatePath(`/cuenta/anuncios/${listingId}/vista-previa`);
+  redirect(`/cuenta/anuncios/${listingId}/vista-previa`);
+}
 
 export async function createDraftAction(
   _previousState: ListingActionState,

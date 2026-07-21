@@ -5,6 +5,7 @@ import { ListingForm } from "@/components/listing-form";
 import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
 import { ListingPhotoManager } from "@/components/listing-photo-manager";
 import { ListingPhotoUploader } from "@/components/listing-photo-uploader";
+import { ListingSubmissionPanel } from "@/components/listing-submission-panel";
 import { requireUser } from "@/lib/auth";
 import { LISTING_STATUS_LABELS } from "@/lib/listing-display";
 import { getPrivateListingPhotoAvailability, getPrivateListingPhotos } from "@/lib/listing-media";
@@ -40,6 +41,9 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     supabase.from("models").select("id,brand_id,name").eq("active", true).order("name"),
     getPrivateListingPhotos(id, viewer.id),
   ]);
+  const readiness = status === "draft"
+    ? await supabase.rpc("get_listing_submission_readiness", { target_listing_id: id })
+    : { data: [] as string[] };
   const availablePhotoSlots = status === "draft"
     ? await getPrivateListingPhotoAvailability(id, viewer.id, photos?.length ?? 0)
     : 0;
@@ -62,6 +66,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
           />
         ) : <ListingPhotoGallery photos={photos ?? []} />}
       </div>
+      {status === "draft" ? <ListingSubmissionPanel listingId={id} readinessCodes={(readiness.data as string[] | null) ?? []} /> : null}
       <ListingForm listing={data} categories={categories ?? []} brands={brands ?? []} models={models ?? []} />
     </section>
   );

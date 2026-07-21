@@ -82,3 +82,21 @@ export async function getPrivateListingPhotoAvailability(
     .gt("expires_at", new Date().toISOString());
   return Math.max(0, MAX_LISTING_PHOTOS - finalizedCount - (count ?? 0));
 }
+
+export async function getStaffListingPhotos(listingId: string) {
+  const supabase = await createClient();
+  const { data: media, error } = await supabase.from("listing_media")
+    .select("id,storage_path,width,height,sort_order,is_cover,deletion_started_at")
+    .eq("listing_id", listingId).order("sort_order", { ascending: true });
+  if (error) throw new Error("No pudimos consultar las fotografías para revisión.");
+  return Promise.all((media ?? []).map(async (item) => {
+    if (!item.width || !item.height) throw new Error("Una fotografía no tiene dimensiones válidas.");
+    const signed = item.deletion_started_at ? null : await supabase.storage.from("listing-media").createSignedUrl(item.storage_path, 300);
+    return {
+      id: item.id,
+      signedUrl: signed && !signed.error ? signed.data.signedUrl : null,
+      width: item.width, height: item.height, sortOrder: item.sort_order,
+      isCover: item.is_cover, deletionPending: Boolean(item.deletion_started_at),
+    } satisfies PrivateListingPhoto;
+  }));
+}
