@@ -20,7 +20,14 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
 
   test("registro crea perfil user y muestra que requiere confirmación", async ({ page, context }) => {
     await page.goto("/registro");
-    await page.getByLabel("Username").fill(username);
+    const usernameInput = page.getByLabel("Username");
+    await usernameInput.fill("Mi-User");
+    await expect(usernameInput).toHaveValue("mi-user");
+    await expect(page.getByText("Usa únicamente letras, números y guion bajo.", { exact: true })).toBeVisible();
+    await usernameInput.fill(`${username.slice(0, 4).toUpperCase()}${username.slice(4)}`);
+    await expect(usernameInput).toHaveValue(username);
+    await usernameInput.blur();
+    await expect(page.getByText("Username disponible.", { exact: true })).toBeVisible();
     await page.getByLabel("Correo").fill(email);
     await page.getByRole("textbox", { name: "Contraseña", exact: true }).fill(oldPassword);
     await page.getByLabel("Repetir contraseña").fill(oldPassword);
@@ -65,8 +72,8 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
     await page.goto("/staff");
     await expect(page).toHaveURL(`${e2eEnv.appUrl}/cuenta`);
 
-    await page.locator("summary").click();
-    await page.getByRole("button", { name: "Cerrar sesión" }).click();
+    await page.getByRole("button", { name: /Menú de usuario/ }).click();
+    await page.getByRole("menuitem", { name: "Cerrar sesión" }).click();
     await expect(page).toHaveURL(/\/login\?signedOut=1$/);
     await page.goto("/cuenta");
     await expect(page).toHaveURL(`${e2eEnv.appUrl}/login`);
@@ -86,8 +93,8 @@ test.describe("Auth real mediante navegador y Mailpit", () => {
   test("recuperación cambia la contraseña y deja inutilizable la anterior", async ({ page, context }) => {
     await context.addCookies(browserCookies);
     await page.goto("/cuenta");
-    await page.locator("summary").click();
-    await page.getByRole("button", { name: "Cerrar sesión" }).click();
+    await page.getByRole("button", { name: /Menú de usuario/ }).click();
+    await page.getByRole("menuitem", { name: "Cerrar sesión" }).click();
     await page.goto("/recuperar-password");
     await page.getByLabel("Correo").fill(email);
     await page.getByRole("button", { name: "Enviar enlace" }).click();

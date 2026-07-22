@@ -100,8 +100,8 @@ test.describe("Borrador de anuncio del propietario", () => {
     expect(await page.locator("body").innerText()).not.toContain("editorial_description");
 
     await page.goto("/cuenta");
-    await page.locator("summary").click();
-    await page.getByRole("button", { name: "Cerrar sesión" }).click();
+    await page.getByRole("button", { name: /Menú de usuario/ }).click();
+    await page.getByRole("menuitem", { name: "Cerrar sesión" }).click();
     await page.getByLabel("Correo").fill(owner.email);
     await page.getByLabel("Contraseña").fill(owner.password);
     await page.getByRole("button", { name: "Ingresar" }).click();

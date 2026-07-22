@@ -15,17 +15,17 @@ test("dos registros concurrentes no reservan el mismo username", async () => {
   const admin = adminClient();
   const username = `race${crypto.randomUUID().replaceAll("-", "").slice(0, 10)}`;
   const emails = [`race-a-${runId}@example.test`, `race-b-${runId}@example.test`];
-  const attempts = await Promise.all(emails.map((email) => anonymousClient().auth.signUp({
+  const attempts = await Promise.all(emails.map((email, index) => anonymousClient().auth.signUp({
     email,
     password: `Race-${crypto.randomUUID()}!`,
-    options: { data: { username } },
+    options: { data: { username: index === 0 ? username : username.toUpperCase() } },
   })));
   expect(attempts.filter((attempt) => !attempt.error)).toHaveLength(1);
   expect(attempts.filter((attempt) => attempt.error)).toHaveLength(1);
   const users = (await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })).data.users.filter((user) => emails.includes(user.email ?? ""));
   expect(users).toHaveLength(1);
-  expect(users[0].user_metadata).toMatchObject({ username });
   expect(JSON.stringify(users[0].user_metadata)).not.toContain("confirm_password");
+  expect((await admin.from("profiles").select("username").eq("id", users[0].id).single()).data?.username).toBe(username);
   await deleteUsers(admin, users.map((user) => user.id));
 });
 
@@ -37,10 +37,27 @@ test("cuenta legacy completa identidad y expone un perfil público mínimo", asy
     await expect(page.getByRole("link", { name: "Ingresar" })).toHaveCount(0);
     await expect(page.locator("dd").getByText("Usuario sin username", { exact: true })).toBeVisible();
     await expect(page.getByText(legacy.email, { exact: true })).toBeVisible();
-    await page.locator("summary").click();
-    await expect(page.getByRole("button", { name: "Cerrar sesión" })).toHaveCount(1);
+    const menuButton = page.getByRole("button", { name: /Menú de usuario/ });
+    await expect(menuButton).toHaveAttribute("aria-haspopup", "menu");
+    await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await menuButton.click();
+    await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    await page.getByRole("heading", { name: /^Hola/ }).hover();
+    await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("menuitem", { name: "Cerrar sesión" })).toHaveCount(1);
+    await page.getByRole("heading", { name: /^Hola/ }).click();
+    await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await menuButton.focus();
+    await menuButton.press("ArrowDown");
+    await expect(page.getByRole("menuitem", { name: "Mi cuenta" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await expect(menuButton).toBeFocused();
     const username = `legacy${crypto.randomUUID().replaceAll("-", "").slice(0, 8)}`;
-    await page.getByLabel("Username").fill(username);
+    await page.getByLabel("Username").fill(username.toUpperCase());
+    await expect(page.getByLabel("Username")).toHaveValue(username);
+    await page.getByLabel("Username").blur();
+    await expect(page.getByText("Username disponible.", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Establecer username" }).click();
     await expect(page.locator("dd").getByText(`@${username}`, { exact: true })).toBeVisible();
     expect((await admin.from("profiles").select("username").eq("id", legacy.id).single()).data?.username).toBe(username);

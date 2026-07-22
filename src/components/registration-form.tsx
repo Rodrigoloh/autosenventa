@@ -1,33 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
-import { checkUsernameAvailabilityAction, signUp } from "@/app/auth-actions";
+import { useState } from "react";
+import { signUp } from "@/app/auth-actions";
+import { UsernameField } from "@/components/username-field";
+import { USERNAME_MESSAGES, type UsernameValidationCode } from "@/lib/auth-validation";
 
-export function RegistrationForm({ error }: { error?: boolean }) {
-  const [usernameMessage, setUsernameMessage] = useState("");
-  const [checking, startChecking] = useTransition();
+type RegistrationError = UsernameValidationCode | "occupied" | "invalid" | "signup";
+
+export function RegistrationForm({ error }: { error?: RegistrationError }) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const mismatch = confirmation.length > 0 && password !== confirmation;
-
-  function checkUsername(value: string) {
-    startChecking(async () => {
-      const result = await checkUsernameAvailabilityAction(value);
-      setUsernameMessage(result.message);
-    });
-  }
+  const serverMessage = error && error in USERNAME_MESSAGES
+    ? USERNAME_MESSAGES[error as keyof typeof USERNAME_MESSAGES]
+    : error ? "No fue posible crear la cuenta. Revisa los datos e inténtalo de nuevo." : "";
 
   return (
     <main className="mx-auto w-full max-w-md flex-1 px-5 py-20">
       <h1 className="text-4xl font-black tracking-tight">Crear cuenta</h1>
-      {error ? <p role="alert" className="mt-6 border px-4 py-3 text-sm">No fue posible crear la cuenta. Revisa el username y los datos.</p> : null}
+      {serverMessage ? <p role="alert" className="mt-6 border px-4 py-3 text-sm">{serverMessage}</p> : null}
       <form action={signUp} className="mt-10 space-y-5">
-        <label className="block text-sm font-semibold">Username
-          <input name="username" required minLength={3} maxLength={24} pattern="[a-z][a-z0-9_]*[a-z0-9]" autoComplete="username" onBlur={(event) => checkUsername(event.target.value)} className="mt-2 h-12 w-full border bg-white px-3 font-normal" />
-        </label>
-        <p className="text-xs text-stone-600">3–24 caracteres: minúsculas, números y guion bajo.</p>
-        <p role="status" className="text-sm font-semibold">{checking ? "Comprobando disponibilidad…" : usernameMessage}</p>
+        <UsernameField id="registration-username" />
         <label className="block text-sm font-semibold">Correo<input name="email" type="email" required autoComplete="email" className="mt-2 h-12 w-full border bg-white px-3 font-normal" /></label>
         <label className="block text-sm font-semibold">Contraseña<input name="password" type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 h-12 w-full border bg-white px-3 font-normal" /></label>
         <label className="block text-sm font-semibold">Repetir contraseña<input name="confirm_password" type="password" required minLength={8} autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} className="mt-2 h-12 w-full border bg-white px-3 font-normal" /></label>

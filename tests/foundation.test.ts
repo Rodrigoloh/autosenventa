@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { accessDecision, defaultPathForRole, resolveViewer, safeInternalPath } from "../src/lib/auth-policy";
-import { credentialsSchema, emailSchema, registrationSchema, usernameSchema } from "../src/lib/auth-validation";
+import {
+  credentialsSchema,
+  emailSchema,
+  normalizeUsername,
+  registrationSchema,
+  USERNAME_MESSAGES,
+  usernameSchema,
+  usernameValidationMessage,
+} from "../src/lib/auth-validation";
 import { parsePublicEnv } from "../src/lib/env";
 import { listingCompletion } from "../src/lib/listing-display";
 import {
@@ -29,7 +37,15 @@ test("valida credenciales y correo", () => {
 });
 
 test("valida username y confirmación de registro", () => {
-  assert.equal(usernameSchema.parse(" Usuario_5 "), "usuario_5");
+  assert.equal(normalizeUsername("RodrigoLoh"), "rodrigoloh");
+  assert.equal(usernameSchema.parse("Usuario_5"), "usuario_5");
+  assert.equal(usernameSchema.safeParse(" Usuario_5 ").success, false);
+  assert.equal(usernameValidationMessage("mi-usuario"), "Usa únicamente letras, números y guion bajo.");
+  assert.equal(usernameValidationMessage("5usuario"), "El username debe comenzar con una letra.");
+  assert.equal(usernameValidationMessage("usuario_"), "El username no puede terminar en guion bajo.");
+  assert.equal(usernameValidationMessage("usuario__cinco"), "No uses dos guiones bajos consecutivos.");
+  assert.equal(usernameValidationMessage("soporte"), "Este username no está disponible.");
+  assert.equal(USERNAME_MESSAGES.occupied, "Este username ya está ocupado.");
   for (const invalid of ["5usuario", "usuario_", "usuario__cinco", "con-punto.", "soporte", "áccento"]) {
     assert.equal(usernameSchema.safeParse(invalid).success, false);
   }
