@@ -2,7 +2,7 @@ import type { ListingStatus } from "@/lib/constants";
 
 export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   draft: "Borrador",
-  submitted: "Enviado",
+  submitted: "Enviado a revisión",
   in_review: "En revisión",
   changes_requested: "Cambios solicitados",
   approved: "Aprobado",

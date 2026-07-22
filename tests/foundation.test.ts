@@ -11,7 +11,7 @@ import {
   usernameValidationMessage,
 } from "../src/lib/auth-validation";
 import { parsePublicEnv } from "../src/lib/env";
-import { listingCompletion } from "../src/lib/listing-display";
+import { LISTING_STATUS_LABELS, listingCompletion } from "../src/lib/listing-display";
 import {
   assertSafeImageDimensions,
   detectImageMime,
@@ -115,6 +115,15 @@ test("genera título tolerante y calcula avance", () => {
   assert.equal(provisionalTitle({ brand: "Mazda" }), "Mazda");
   assert.equal(provisionalTitle({}), "Borrador sin identificar");
   assert.equal(listingCompletion({}), 0);
+});
+
+test("presenta estados del propietario con texto inequívoco", () => {
+  assert.equal(LISTING_STATUS_LABELS.draft, "Borrador");
+  assert.equal(LISTING_STATUS_LABELS.submitted, "Enviado a revisión");
+  assert.equal(LISTING_STATUS_LABELS.in_review, "En revisión");
+  assert.equal(LISTING_STATUS_LABELS.changes_requested, "Cambios solicitados");
+  assert.equal(LISTING_STATUS_LABELS.approved, "Aprobado");
+  assert.equal(LISTING_STATUS_LABELS.rejected, "Rechazado");
 });
 
 test("mantiene separados estados editables y eliminables", () => {

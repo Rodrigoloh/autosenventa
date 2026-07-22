@@ -76,14 +76,14 @@ test("cuenta legacy completa identidad y expone un perfil público mínimo", asy
 });
 
 test("staff identifica propietario y registra decisiones definitivas", async ({ page, browser }) => {
+  test.setTimeout(240_000);
   const admin = adminClient();
-  const [owner, staff, otherStaff] = await Promise.all([
+  const [owner, staff, otherUser] = await Promise.all([
     createConfirmedUser(admin, "decision-owner"),
     createConfirmedUser(admin, "decision-staff"),
-    createConfirmedUser(admin, "decision-other"),
+    createConfirmedUser(admin, "decision-other-user"),
   ]);
   await setRolePrivileged(staff.id, "staff");
-  await setRolePrivileged(otherStaff.id, "staff");
   const listingIds: string[] = [];
   try {
     const createReview = async (title: string) => {
@@ -96,6 +96,12 @@ test("staff identifica propietario y registra decisiones definitivas", async ({ 
     const changesId = await createReview("Solicitar cambios E2E");
     const rejectId = await createReview("Rechazar E2E");
     const approveId = await createReview("Aprobar E2E");
+
+    const openOwnerContext = await browser.newContext();
+    const openOwnerPage = await openOwnerContext.newPage();
+    await login(openOwnerPage, owner.email, owner.password, /\/cuenta$/);
+    await expect(openOwnerPage.getByRole("heading", { name: "Actualizaciones de tus anuncios" })).toBeVisible();
+    await expect(openOwnerPage.getByText("No tienes actualizaciones de revisión pendientes.")).toBeVisible();
 
     await login(page, staff.email, staff.password, /\/staff$/);
     await expect(page.getByText("Usuarios registrados")).toBeVisible();
@@ -123,19 +129,75 @@ test("staff identifica propietario y registra decisiones definitivas", async ({ 
     await page.goto("/staff/anuncios");
     await expect(page.getByText("Aprobar E2E")).toHaveCount(0);
 
+    await openOwnerPage.reload();
+    await expect(openOwnerPage.getByText("Tu anuncio fue rechazado.")).toBeVisible();
+    await expect(openOwnerPage.getByText("Tu anuncio requiere cambios.")).toBeVisible();
+    await expect(openOwnerPage.getByText("Tu anuncio fue aprobado.")).toBeVisible();
+    await openOwnerContext.close();
+
     const ownerContext = await browser.newContext();
     const ownerPage = await ownerContext.newPage();
     await login(ownerPage, owner.email, owner.password, /\/cuenta$/);
+    const rejectionUpdate = ownerPage.getByRole("article").filter({
+      has: ownerPage.locator(`a[href="/cuenta/anuncios/${rejectId}/vista-previa"]`),
+    });
+    await expect(rejectionUpdate.getByText("Tu anuncio fue rechazado.")).toBeVisible();
+    await expect(rejectionUpdate.getByRole("link", { name: "Ver motivo" })).toBeVisible();
+    await expect(ownerPage.getByText("La aprobación no significa que ya esté publicado.")).toBeVisible();
+
+    await ownerPage.goto("/cuenta/anuncios");
+    const rejectedCard = ownerPage.getByRole("article").filter({
+      has: ownerPage.locator(`a[href="/cuenta/anuncios/${rejectId}/vista-previa"]`),
+    });
+    const changesCard = ownerPage.getByRole("article").filter({
+      has: ownerPage.locator(`a[href="/cuenta/anuncios/${changesId}/vista-previa"]`),
+    });
+    const approvedCard = ownerPage.getByRole("article").filter({
+      has: ownerPage.locator(`a[href="/cuenta/anuncios/${approveId}/vista-previa"]`),
+    });
+    await expect(rejectedCard.getByText("Rechazado", { exact: true })).toBeVisible();
+    await expect(rejectedCard.getByRole("link", { name: "Ver motivo" })).toBeVisible();
+    await expect(changesCard.getByText("Cambios solicitados", { exact: true })).toBeVisible();
+    await expect(changesCard.getByRole("link", { name: "Ver mensaje" })).toBeVisible();
+    await expect(approvedCard.getByText("Aprobado", { exact: true })).toBeVisible();
+    await expect(approvedCard.getByText("Publicado", { exact: true })).toHaveCount(0);
+
     await ownerPage.goto(`/cuenta/anuncios/${changesId}/vista-previa`);
     await expect(ownerPage.getByText("Corrige la descripción y documenta claramente el mantenimiento.")).toBeVisible();
+    await expect(ownerPage.getByText(/Fecha de decisión:/)).toBeVisible();
     await expect(ownerPage.getByRole("link", { name: "Editar y corregir" })).toBeVisible();
+    await expect(ownerPage.getByRole("button", { name: "Enviar a revisión" })).toBeVisible();
     await ownerPage.goto(`/cuenta/anuncios/${approveId}/vista-previa`);
     await expect(ownerPage.getByText("Tu anuncio fue aprobado.")).toBeVisible();
+    await expect(ownerPage.getByText("La aprobación no significa que ya esté publicado.")).toBeVisible();
+    await expect(ownerPage.getByText(/Fecha de decisión:/)).toBeVisible();
     await ownerPage.goto(`/cuenta/anuncios/${rejectId}/vista-previa`);
     await expect(ownerPage.getByText("El vehículo no cumple los criterios mínimos del marketplace.")).toBeVisible();
+    await expect(ownerPage.getByText("Este anuncio no puede editarse ni reenviarse en esta versión.")).toBeVisible();
+    await expect(ownerPage.getByText(/Fecha de decisión:/)).toBeVisible();
+    await expect(ownerPage.getByRole("link", { name: "Volver a editar" })).toHaveCount(0);
+    await expect(ownerPage.getByRole("button", { name: "Enviar a revisión" })).toHaveCount(0);
+    const ownerHtml = await ownerPage.content();
+    expect(ownerHtml).not.toContain(staff.id);
+    expect(ownerHtml).not.toContain(staff.email);
+    await ownerPage.goto(`/cuenta/anuncios/${rejectId}/editar`);
+    await expect(ownerPage.getByRole("heading", { name: "Este anuncio no se puede editar" })).toBeVisible();
+    await expect(ownerPage.getByRole("button", { name: "Guardar borrador" })).toHaveCount(0);
     await ownerContext.close();
+
+    const otherClient = anonymousClient();
+    expect((await otherClient.auth.signInWithPassword({ email: otherUser.email, password: otherUser.password })).error).toBeNull();
+    const foreignDecision = await otherClient.from("listing_review_decisions").select("decision,message,created_at").eq("listing_id", rejectId);
+    expect(foreignDecision.error).toBeNull();
+    expect(foreignDecision.data).toEqual([]);
+    const otherContext = await browser.newContext();
+    const otherPage = await otherContext.newPage();
+    await login(otherPage, otherUser.email, otherUser.password, /\/cuenta$/);
+    const foreignPreview = await otherPage.goto(`/cuenta/anuncios/${rejectId}/vista-previa`);
+    expect(foreignPreview?.status()).toBe(404);
+    await otherContext.close();
   } finally {
     for (const id of listingIds) await admin.from("listings").delete().eq("id", id);
-    await deleteUsers(admin, [otherStaff.id, staff.id, owner.id]);
+    await deleteUsers(admin, [otherUser.id, staff.id, owner.id]);
   }
 });

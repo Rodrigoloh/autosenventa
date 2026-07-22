@@ -54,6 +54,8 @@ export async function decideListingReviewAction(
   const result = data as { success: boolean; conflict_code: string | null };
   if (!result.success) return { status: "error", message: result.conflict_code === "message_too_short" ? "Escribe un mensaje de al menos 20 caracteres." : result.conflict_code === "not_assigned" ? "Sólo el revisor asignado puede decidir." : "La revisión ya fue decidida por otra sesión." };
   revalidatePath("/staff"); revalidatePath("/staff/anuncios"); revalidatePath(`/staff/anuncios/${listingId}`);
-  revalidatePath("/cuenta/anuncios"); revalidatePath(`/cuenta/anuncios/${listingId}/vista-previa`);
+  revalidatePath("/cuenta"); revalidatePath("/cuenta/anuncios");
+  revalidatePath(`/cuenta/anuncios/${listingId}/editar`);
+  revalidatePath(`/cuenta/anuncios/${listingId}/vista-previa`);
   redirect(`/staff/anuncios/${listingId}?result=${decision}`);
 }

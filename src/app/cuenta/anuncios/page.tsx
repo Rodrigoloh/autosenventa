@@ -6,6 +6,8 @@ import { EDITABLE_LISTING_STATUSES } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
 import type { ListingStatus } from "@/lib/constants";
 
+export const dynamic = "force-dynamic";
+
 type DashboardListing = Record<string, unknown> & {
   id: string; title: string; variant: string | null; year: number | null; price_mxn: string | number | null;
   status: ListingStatus; updated_at: string; brands: { name: string } | null; models: { name: string } | null;
@@ -46,7 +48,7 @@ export default async function ListingsPage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="bg-stone-200 px-2.5 py-1 text-xs font-bold uppercase tracking-wide">{LISTING_STATUS_LABELS[listing.status]}</span>
-                  {completion < 100 ? <span className="text-xs font-semibold text-amber-800">Borrador incompleto</span> : null}
+                  {listing.status === "draft" && completion < 100 ? <span className="text-xs font-semibold text-amber-800">Borrador incompleto</span> : null}
                 </div>
                 <h2 className="mt-3 text-2xl font-black tracking-tight">{listing.title}</h2>
                 <p className="mt-1 text-sm text-stone-600">{[listing.brands?.name, listing.models?.name, listing.variant, listing.year].filter(Boolean).join(" · ") || "Vehículo por identificar"}</p>
@@ -59,6 +61,8 @@ export default async function ListingsPage() {
               </div>
               <div className="flex flex-wrap gap-2 lg:justify-end">
                 {editable ? <Link href={`/cuenta/anuncios/${listing.id}/editar`} className="border border-stone-950 px-4 py-2 text-sm font-bold hover:bg-stone-950 hover:text-white">Editar</Link> : <span className="px-1 py-2 text-sm font-semibold text-stone-500">No editable</span>}
+                {listing.status === "rejected" ? <Link href={`/cuenta/anuncios/${listing.id}/vista-previa`} className="border border-red-800 px-4 py-2 text-sm font-bold text-red-900 hover:bg-red-800 hover:text-white">Ver motivo</Link> : null}
+                {listing.status === "changes_requested" ? <Link href={`/cuenta/anuncios/${listing.id}/vista-previa`} className="border border-amber-700 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-amber-700 hover:text-white">Ver mensaje</Link> : null}
                 <Link href={`/cuenta/anuncios/${listing.id}/vista-previa`} className="border px-4 py-2 text-sm font-bold hover:border-accent hover:text-accent">Vista previa</Link>
               </div>
             </article>

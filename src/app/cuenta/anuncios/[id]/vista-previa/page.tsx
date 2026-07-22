@@ -10,6 +10,8 @@ import { EDITABLE_LISTING_STATUSES } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
 import type { ListingStatus } from "@/lib/constants";
 
+export const dynamic = "force-dynamic";
+
 type PreviewListing = {
   id: string; title: string; status: ListingStatus; submitted_at: string | null; variant: string | null; year: number | null;
   price_mxn: number | string | null; mileage_km: number | null; city: string | null; state_region: string | null;
@@ -49,9 +51,32 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
     <article>
       <div className="border-2 border-amber-600 bg-amber-50 p-4 text-sm font-bold text-amber-950" role="note">Vista previa privada. Este anuncio todavía no está publicado.</div>
       {listing.status === "submitted" || listing.status === "in_review" ? <div className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">{listing.status === "submitted" ? "Enviado a revisión" : "En revisión"}{listing.submitted_at ? ` · ${formatDate(listing.submitted_at)}` : ""}</div> : null}
-      {listing.status === "changes_requested" ? <div className="mt-4 border border-amber-700 bg-amber-50 p-4 text-amber-950"><p className="font-black">Cambios solicitados</p><p className="mt-2 whitespace-pre-wrap">{decision.data?.message}</p><Link href={`/cuenta/anuncios/${id}/editar`} className="mt-3 inline-block font-bold underline">Editar y corregir</Link></div> : null}
-      {listing.status === "approved" ? <div className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-emerald-950"><p className="font-black">Tu anuncio fue aprobado.</p><p className="mt-1 text-sm">Todavía no está publicado; la publicación final es un flujo separado.</p></div> : null}
-      {listing.status === "rejected" ? <div className="mt-4 border border-red-800 bg-red-50 p-4 text-red-950"><p className="font-black">Tu anuncio fue rechazado.</p><p className="mt-2 whitespace-pre-wrap">{decision.data?.message}</p></div> : null}
+      {listing.status === "changes_requested" ? (
+        <section className="mt-4 border border-amber-700 bg-amber-50 p-4 text-amber-950" aria-labelledby="review-update-heading">
+          <p className="text-sm font-bold uppercase tracking-wide">Cambios solicitados</p>
+          <h2 id="review-update-heading" className="mt-1 font-black">Tu anuncio requiere cambios.</h2>
+          {decision.data?.message ? <p className="mt-2 whitespace-pre-wrap">{decision.data.message}</p> : null}
+          {decision.data?.created_at ? <p className="mt-2 text-sm">Fecha de decisión: {formatDate(decision.data.created_at)}</p> : null}
+          <Link href={`/cuenta/anuncios/${id}/editar`} className="mt-3 inline-flex min-h-11 items-center font-bold underline">Editar y corregir</Link>
+        </section>
+      ) : null}
+      {listing.status === "approved" ? (
+        <section className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-emerald-950" aria-labelledby="review-update-heading">
+          <p className="text-sm font-bold uppercase tracking-wide">Aprobado</p>
+          <h2 id="review-update-heading" className="mt-1 font-black">Tu anuncio fue aprobado.</h2>
+          <p className="mt-1 text-sm">La aprobación no significa que ya esté publicado.</p>
+          {decision.data?.created_at ? <p className="mt-2 text-sm">Fecha de decisión: {formatDate(decision.data.created_at)}</p> : null}
+        </section>
+      ) : null}
+      {listing.status === "rejected" ? (
+        <section className="mt-4 border border-red-800 bg-red-50 p-4 text-red-950" aria-labelledby="review-update-heading">
+          <p className="text-sm font-bold uppercase tracking-wide">Rechazado</p>
+          <h2 id="review-update-heading" className="mt-1 font-black">Tu anuncio fue rechazado.</h2>
+          {decision.data?.message ? <p className="mt-2 whitespace-pre-wrap">{decision.data.message}</p> : null}
+          {decision.data?.created_at ? <p className="mt-2 text-sm">Fecha de decisión: {formatDate(decision.data.created_at)}</p> : null}
+          <p className="mt-3 text-sm font-semibold">Este anuncio no puede editarse ni reenviarse en esta versión.</p>
+        </section>
+      ) : null}
       <header className="py-10">
         <p className="text-sm font-bold uppercase tracking-[0.18em] text-accent">{[listing.brands?.name, listing.models?.name].filter(Boolean).join(" · ") || "Vehículo por identificar"}</p>
         <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">{listing.title}</h1>
