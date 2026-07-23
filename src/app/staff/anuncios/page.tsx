@@ -29,8 +29,7 @@ function applyViewFilter<T extends {
   if (view === "in-review") return query.eq("status", "in_review");
   if (view === "mine") return query.eq("status", "in_review").eq("reviewer_id", viewerId);
   if (view === "changes-requested") return query.eq("status", "changes_requested");
-  if (view === "published") return query.eq("status", "published");
-  return query.eq("status", "approved");
+  return query.eq("status", "published");
 }
 
 function itemBadge(item: QueueListing, viewerId: string) {

@@ -102,16 +102,8 @@ test("staff identifica propietario y registra decisiones definitivas", async ({ 
     await expect(openOwnerPage.getByRole("heading", { name: "Actualizaciones de tus anuncios" })).toBeVisible();
     await expect(openOwnerPage.getByText("No tienes actualizaciones de revisión pendientes.")).toBeVisible();
 
-    const legacy = await admin.from("listings").insert({ owner_id: owner.id, title: "Aprobado legado E2E", status: "approved" }).select("id").single();
-    expect(legacy.error).toBeNull();
-    const legacyId = legacy.data!.id;
-    listingIds.push(legacyId);
-    const legacySubmission = await admin.from("listing_submissions").insert({ listing_id: legacyId, submitted_by: owner.id, attest_owner_authorized: true, attest_information_truthful: true, attest_modifications_and_issues_disclosed: true, attest_legal_documentation: true, attestation_version: "2026-07-20-v1" }).select("id").single();
-    expect(legacySubmission.error).toBeNull();
-    expect((await admin.from("listing_review_decisions").insert({ submission_id: legacySubmission.data!.id, listing_id: legacyId, reviewer_id: staff.id, decision: "approved" })).error).toBeNull();
     const publishedBefore = (await admin.from("listings").select("id", { count: "exact", head: true }).eq("status", "published")).count ?? 0;
     const inReviewBefore = (await admin.from("listings").select("id", { count: "exact", head: true }).eq("status", "in_review")).count ?? 0;
-    const legacyBefore = (await admin.from("listings").select("id", { count: "exact", head: true }).eq("status", "approved")).count ?? 0;
 
     await login(page, staff.email, staff.password, /\/staff$/);
     await expect(page.getByText("Usuarios registrados")).toBeVisible();
@@ -142,26 +134,13 @@ test("staff identifica propietario y registra decisiones definitivas", async ({ 
     await expect(page.locator('a[href="/staff/anuncios?view=in-review"]')).toContainText(String(inReviewBefore - 3));
     await page.goto("/staff/anuncios");
     await expect(page.getByText("Aprobar E2E")).toHaveCount(0);
-    const decisionsBeforeLegacyPublish = (await admin.from("listing_review_decisions").select("id").eq("listing_id", legacyId)).data?.length;
-    await page.goto(`/staff/anuncios/${legacyId}?from=legacy-approved`);
-    await page.getByRole("button", { name: "Publicar anuncio" }).click();
-    await expect(page.getByText("Anuncio aprobado y publicado.")).toBeVisible({ timeout: 30_000 });
-    expect((await admin.from("listings").select("status,published_at").eq("id", legacyId).single()).data?.status).toBe("published");
-    expect((await admin.from("listing_review_decisions").select("id").eq("listing_id", legacyId)).data).toHaveLength(decisionsBeforeLegacyPublish ?? 1);
-    await page.goto("/staff");
-    await expect(page.locator('a[href="/staff/anuncios?view=published"]')).toContainText(String(publishedBefore + 2));
-    const legacyCard = page.locator('a[href="/staff/anuncios?view=legacy-approved"]');
-    if (legacyBefore - 1 === 0) await expect(legacyCard).toHaveCount(0);
-    else await expect(legacyCard).toContainText(String(legacyBefore - 1));
-    await page.goto("/staff/anuncios?view=legacy-approved");
-    await expect(page.locator(`a[href^="/staff/anuncios/${legacyId}"]`)).toHaveCount(0);
     await page.goto("/staff/anuncios?view=published");
-    await expect(page.locator(`a[href^="/staff/anuncios/${legacyId}"]`)).toHaveCount(1);
+    await expect(page.locator(`a[href^="/staff/anuncios/${approveId}"]`)).toHaveCount(1);
 
     await openOwnerPage.reload();
     await expect(openOwnerPage.getByText("Tu anuncio fue rechazado.")).toBeVisible();
     await expect(openOwnerPage.getByText("Tu anuncio requiere cambios.")).toBeVisible();
-    await expect(openOwnerPage.getByText("Tu anuncio ya está publicado.")).toHaveCount(2);
+    await expect(openOwnerPage.getByText("Tu anuncio ya está publicado.")).toHaveCount(1);
     await openOwnerContext.close();
 
     const ownerContext = await browser.newContext();
@@ -172,7 +151,7 @@ test("staff identifica propietario y registra decisiones definitivas", async ({ 
     });
     await expect(rejectionUpdate.getByText("Tu anuncio fue rechazado.")).toBeVisible();
     await expect(rejectionUpdate.getByRole("link", { name: "Ver motivo" })).toBeVisible();
-    await expect(ownerPage.getByText("Tu anuncio ya está visible en el marketplace.")).toHaveCount(2);
+    await expect(ownerPage.getByText("Tu anuncio ya está visible en el marketplace.")).toHaveCount(1);
 
     await ownerPage.goto("/cuenta/anuncios");
     const rejectedCard = ownerPage.getByRole("article").filter({

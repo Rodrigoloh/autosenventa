@@ -5,7 +5,6 @@ export const STAFF_LISTING_VIEWS = [
   "mine",
   "changes-requested",
   "published",
-  "legacy-approved",
 ] as const;
 
 export type StaffListingView = (typeof STAFF_LISTING_VIEWS)[number];
@@ -44,11 +43,6 @@ export const STAFF_LISTING_VIEW_COPY: Record<StaffListingView, {
     title: "Publicados",
     empty: "No hay anuncios publicados.",
     countLabel: (count) => `${count} ${count === 1 ? "anuncio publicado" : "anuncios publicados"}`,
-  },
-  "legacy-approved": {
-    title: "Aprobados pendientes de publicar",
-    empty: "No hay anuncios aprobados pendientes de publicar.",
-    countLabel: (count) => `${count} ${count === 1 ? "registro legado pendiente" : "registros legados pendientes"}`,
   },
 };
 

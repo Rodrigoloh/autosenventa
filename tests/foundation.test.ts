@@ -72,7 +72,7 @@ test("resuelve guards user, staff y admin", () => {
 test("acepta sólo vistas staff conocidas y genera rutas estables", () => {
   assert.equal(parseStaffListingView(undefined), "all");
   assert.equal(parseStaffListingView("pending"), "pending");
-  assert.equal(parseStaffListingView("legacy-approved"), "legacy-approved");
+  assert.equal(parseStaffListingView("legacy-approved"), null);
   assert.equal(parseStaffListingView("published;drop table listings"), null);
   assert.equal(parseStaffListingView(["pending", "published"]), null);
   assert.equal(staffListingViewHref("all"), "/staff/anuncios");

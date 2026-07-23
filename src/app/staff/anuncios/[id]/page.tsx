@@ -3,7 +3,6 @@ import Link from "next/link";
 import { z } from "zod";
 import { ClaimReviewForm } from "@/components/claim-review-form";
 import { ReviewDecisionForm } from "@/components/review-decision-form";
-import { PublishLegacyListingForm } from "@/components/publish-legacy-listing-form";
 import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
 import { requireRole } from "@/lib/auth";
 import type { ListingStatus } from "@/lib/constants";
@@ -74,7 +73,6 @@ export default async function ReviewListingPage({ params, searchParams }: { para
         <div className="mt-6">{reviewControl}</div>
       </header>
       {listing.status === "in_review" && (listing.reviewer_id === viewer.id || viewer.role === "admin") ? <ReviewDecisionForm listingId={id} returnView={returnView} /> : null}
-      {listing.status === "approved" ? <PublishLegacyListingForm listingId={id} returnView={returnView} /> : null}
       {listing.status === "published" ? <Link href={`/autos/${id}`} className="mt-6 inline-flex bg-emerald-800 px-5 py-3 text-sm font-bold text-white">Ver publicación</Link> : null}
       <div className="mt-8"><ListingPhotoGallery photos={photos} /></div>
       <dl className="mt-8 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">

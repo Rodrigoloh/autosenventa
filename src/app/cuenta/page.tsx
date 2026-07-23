@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 type AccountUpdate = {
   id: string;
   title: string;
-  status: "changes_requested" | "approved" | "published" | "rejected";
+  status: "changes_requested" | "published" | "rejected";
 };
 
 type ReviewDecision = {
@@ -24,7 +24,7 @@ export default async function AccountPage() {
     .from("listings")
     .select("id,title,status")
     .eq("owner_id", viewer.id)
-    .in("status", ["changes_requested", "approved", "published", "rejected"])
+    .in("status", ["changes_requested", "published", "rejected"])
     .order("updated_at", { ascending: false });
   const updates = (updatesData ?? []) as AccountUpdate[];
   const { data: decisionsData } = updates.length
@@ -53,12 +53,12 @@ export default async function AccountPage() {
             const decisionDate = decisionDates.get(listing.id);
             return (
               <article key={listing.id} className="py-5">
-                <p className="font-black">{listing.status === "changes_requested" ? "Tu anuncio requiere cambios." : listing.status === "published" ? "Tu anuncio ya está publicado." : listing.status === "approved" ? "Tu anuncio fue aprobado y está pendiente de publicación." : "Tu anuncio fue rechazado."}</p>
+                <p className="font-black">{listing.status === "changes_requested" ? "Tu anuncio requiere cambios." : listing.status === "published" ? "Tu anuncio ya está publicado." : "Tu anuncio fue rechazado."}</p>
                 <p className="mt-1 text-sm font-semibold text-stone-700">{listing.title}</p>
                 {listing.status === "published" ? <p className="mt-2 text-sm text-stone-600">Tu anuncio ya está visible en el marketplace.</p> : null}
                 {decisionDate ? <p className="mt-2 text-xs text-stone-500">Decisión del {formatDate(decisionDate)}</p> : null}
                 <Link href={listing.status === "published" ? `/autos/${listing.id}` : `/cuenta/anuncios/${listing.id}/${listing.status === "changes_requested" ? "editar" : "vista-previa"}`} className="mt-3 inline-flex min-h-11 items-center font-bold underline">
-                  {listing.status === "changes_requested" ? "Editar y corregir" : listing.status === "published" ? "Ver publicación" : listing.status === "approved" ? "Ver anuncio" : "Ver motivo"}
+                  {listing.status === "changes_requested" ? "Editar y corregir" : listing.status === "published" ? "Ver publicación" : "Ver motivo"}
                 </Link>
               </article>
             );

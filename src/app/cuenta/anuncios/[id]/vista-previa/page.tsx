@@ -60,14 +60,6 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
           <Link href={`/cuenta/anuncios/${id}/editar`} className="mt-3 inline-flex min-h-11 items-center font-bold underline">Editar y corregir</Link>
         </section>
       ) : null}
-      {listing.status === "approved" ? (
-        <section className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-emerald-950" aria-labelledby="review-update-heading">
-          <p className="text-sm font-bold uppercase tracking-wide">Aprobado</p>
-          <h2 id="review-update-heading" className="mt-1 font-black">Tu anuncio fue aprobado.</h2>
-          <p className="mt-1 text-sm">La publicación está pendiente de regularización por el equipo.</p>
-          {decision.data?.created_at ? <p className="mt-2 text-sm">Fecha de decisión: {formatDate(decision.data.created_at)}</p> : null}
-        </section>
-      ) : null}
       {listing.status === "rejected" ? (
         <section className="mt-4 border border-red-800 bg-red-50 p-4 text-red-950" aria-labelledby="review-update-heading">
           <p className="text-sm font-bold uppercase tracking-wide">Rechazado</p>
