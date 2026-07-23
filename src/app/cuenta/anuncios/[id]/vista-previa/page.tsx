@@ -49,7 +49,7 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
 
   return (
     <article>
-      <div className="border-2 border-amber-600 bg-amber-50 p-4 text-sm font-bold text-amber-950" role="note">Vista previa privada. Este anuncio todavía no está publicado.</div>
+      {listing.status === "published" ? <div className="border-2 border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-950" role="status">Publicado. Tu anuncio ya está visible en el marketplace. <Link href={`/autos/${id}`} className="ml-2 underline">Ver publicación</Link></div> : <div className="border-2 border-amber-600 bg-amber-50 p-4 text-sm font-bold text-amber-950" role="note">Vista previa privada. Este anuncio todavía no está publicado.</div>}
       {listing.status === "submitted" || listing.status === "in_review" ? <div className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">{listing.status === "submitted" ? "Enviado a revisión" : "En revisión"}{listing.submitted_at ? ` · ${formatDate(listing.submitted_at)}` : ""}</div> : null}
       {listing.status === "changes_requested" ? (
         <section className="mt-4 border border-amber-700 bg-amber-50 p-4 text-amber-950" aria-labelledby="review-update-heading">
@@ -64,7 +64,7 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
         <section className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-emerald-950" aria-labelledby="review-update-heading">
           <p className="text-sm font-bold uppercase tracking-wide">Aprobado</p>
           <h2 id="review-update-heading" className="mt-1 font-black">Tu anuncio fue aprobado.</h2>
-          <p className="mt-1 text-sm">La aprobación no significa que ya esté publicado.</p>
+          <p className="mt-1 text-sm">La publicación está pendiente de regularización por el equipo.</p>
           {decision.data?.created_at ? <p className="mt-2 text-sm">Fecha de decisión: {formatDate(decision.data.created_at)}</p> : null}
         </section>
       ) : null}

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ListingForm } from "@/components/listing-form";
-import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
 import { ListingPhotoManager } from "@/components/listing-photo-manager";
 import { ListingPhotoUploader } from "@/components/listing-photo-uploader";
 import { ListingSubmissionPanel } from "@/components/listing-submission-panel";
@@ -13,6 +12,8 @@ import { getPendingListingPhotoUploads, getPrivateListingPhotoAvailability, getP
 import { EDITABLE_LISTING_STATUSES } from "@/lib/listing-validation";
 import { createClient } from "@/lib/supabase/server";
 import type { ListingStatus } from "@/lib/constants";
+
+export const dynamic = "force-dynamic";
 
 const listingFields = "id,category_id,brand_id,model_id,variant,year,city,state_region,price_mxn,mileage_km,exterior_color,interior_color,body_style,transmission,drivetrain,fuel_type,engine,owner_description,ownership_history,maintenance_history,modifications,known_issues,sale_reason,status";
 
@@ -41,12 +42,12 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     supabase.from("brands").select("id,name").eq("active", true).order("name"),
     supabase.from("models").select("id,brand_id,name").eq("active", true).order("name"),
     getPrivateListingPhotos(id, viewer.id),
-    status === "draft" ? getPendingListingPhotoUploads(id, viewer.id) : Promise.resolve([]),
+    getPendingListingPhotoUploads(id, viewer.id),
   ]);
   const readiness = status === "draft" || status === "changes_requested"
     ? await supabase.rpc("get_listing_submission_readiness", { target_listing_id: id })
     : { data: [] as string[] };
-  const availablePhotoSlots = status === "draft"
+  const availablePhotoSlots = EDITABLE_LISTING_STATUSES.includes(status as (typeof EDITABLE_LISTING_STATUSES)[number])
     ? await getPrivateListingPhotoAvailability(id, viewer.id, photos?.length ?? 0)
     : 0;
 
@@ -58,16 +59,14 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
         <p className="mt-3 max-w-2xl leading-7 text-stone-600">Guarda tu avance cuando quieras. El anuncio sigue siendo privado y su estado no cambiará.</p>
       </div>
       <div className="mt-10 space-y-8">
-        {status === "draft" ? <PendingPhotoUploads uploads={pendingUploads} /> : null}
-        {status === "draft" ? <ListingPhotoUploader listingId={id} initialAvailableSlots={availablePhotoSlots} /> : null}
-        {status === "draft" ? (
-          <ListingPhotoManager
-            key={(photos ?? []).map((photo) => `${photo.id}:${photo.sortOrder}:${photo.isCover}`).join("|")}
-            listingId={id}
-            initialPhotos={photos ?? []}
-            remainingSlots={availablePhotoSlots}
-          />
-        ) : <ListingPhotoGallery photos={photos ?? []} />}
+        <PendingPhotoUploads uploads={pendingUploads} />
+        <ListingPhotoUploader listingId={id} initialAvailableSlots={availablePhotoSlots} />
+        <ListingPhotoManager
+          key={(photos ?? []).map((photo) => `${photo.id}:${photo.sortOrder}:${photo.isCover}`).join("|")}
+          listingId={id}
+          initialPhotos={photos ?? []}
+          remainingSlots={availablePhotoSlots}
+        />
       </div>
       {status === "draft" || status === "changes_requested" ? <ListingSubmissionPanel listingId={id} readinessCodes={(readiness.data as string[] | null) ?? []} /> : null}
       <ListingForm listing={data} categories={categories ?? []} brands={brands ?? []} models={models ?? []} />

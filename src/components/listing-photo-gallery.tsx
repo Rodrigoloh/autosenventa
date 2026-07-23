@@ -1,7 +1,7 @@
 import type { PrivateListingPhoto } from "@/lib/listing-media";
 import { MAX_LISTING_PHOTOS } from "@/lib/listing-photo-validation";
 
-export function ListingPhotoGallery({ photos, remainingSlots }: { photos: PrivateListingPhoto[]; remainingSlots?: number }) {
+export function ListingPhotoGallery({ photos, remainingSlots, showCapacity = true }: { photos: PrivateListingPhoto[]; remainingSlots?: number; showCapacity?: boolean }) {
   const remaining = remainingSlots ?? Math.max(0, MAX_LISTING_PHOTOS - photos.length);
   const visiblePhotos = photos.filter((photo) => !photo.deletionPending && photo.signedUrl);
   return (
@@ -9,7 +9,7 @@ export function ListingPhotoGallery({ photos, remainingSlots }: { photos: Privat
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 id="photo-gallery-title" className="text-xl font-black tracking-tight">Fotografías</h2>
-          <p className="mt-1 text-sm text-stone-600">{photos.length} de {MAX_LISTING_PHOTOS} · {remaining} espacios disponibles</p>
+          <p className="mt-1 text-sm text-stone-600">{showCapacity ? `${photos.length} de ${MAX_LISTING_PHOTOS} · ${remaining} espacios disponibles` : `${photos.length} fotografías`}</p>
         </div>
       </div>
       {visiblePhotos.length ? (

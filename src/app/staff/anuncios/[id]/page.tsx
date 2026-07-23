@@ -3,6 +3,7 @@ import Link from "next/link";
 import { z } from "zod";
 import { ClaimReviewForm } from "@/components/claim-review-form";
 import { ReviewDecisionForm } from "@/components/review-decision-form";
+import { PublishLegacyListingForm } from "@/components/publish-legacy-listing-form";
 import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
 import { requireRole } from "@/lib/auth";
 import type { ListingStatus } from "@/lib/constants";
@@ -65,7 +66,7 @@ export default async function ReviewListingPage({ params, searchParams }: { para
   return (
     <article>
       <Link href={staffListingViewHref(returnView)} className="mb-5 inline-flex min-h-11 items-center font-bold underline">← Volver a {STAFF_LISTING_VIEW_COPY[returnView].title}</Link>
-      {result === "approved" ? <p role="status" className="mb-5 border border-emerald-700 bg-emerald-50 p-4 font-bold text-emerald-900">Anuncio aprobado. No fue publicado automáticamente.</p> : result === "changes_requested" ? <p role="status" className="mb-5 border border-amber-700 bg-amber-50 p-4 font-bold text-amber-900">Cambios solicitados al propietario.</p> : result === "rejected" ? <p role="status" className="mb-5 border border-red-700 bg-red-50 p-4 font-bold text-red-900">Anuncio rechazado.</p> : null}
+      {result === "published" ? <p role="status" className="mb-5 border border-emerald-700 bg-emerald-50 p-4 font-bold text-emerald-900">Anuncio aprobado y publicado.</p> : result === "changes_requested" ? <p role="status" className="mb-5 border border-amber-700 bg-amber-50 p-4 font-bold text-amber-900">Cambios solicitados al propietario.</p> : result === "rejected" ? <p role="status" className="mb-5 border border-red-700 bg-red-50 p-4 font-bold text-red-900">Anuncio rechazado.</p> : null}
       <header className="border-b pb-7">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">{LISTING_STATUS_LABELS[listing.status]}</p>
         <h1 className="mt-3 text-4xl font-black">{listing.title}</h1>
@@ -73,6 +74,8 @@ export default async function ReviewListingPage({ params, searchParams }: { para
         <div className="mt-6">{reviewControl}</div>
       </header>
       {listing.status === "in_review" && (listing.reviewer_id === viewer.id || viewer.role === "admin") ? <ReviewDecisionForm listingId={id} returnView={returnView} /> : null}
+      {listing.status === "approved" ? <PublishLegacyListingForm listingId={id} returnView={returnView} /> : null}
+      {listing.status === "published" ? <Link href={`/autos/${id}`} className="mt-6 inline-flex bg-emerald-800 px-5 py-3 text-sm font-bold text-white">Ver publicación</Link> : null}
       <div className="mt-8"><ListingPhotoGallery photos={photos} /></div>
       <dl className="mt-8 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
         <Detail label="Marca" value={listing.brands?.name} /><Detail label="Modelo" value={listing.models?.name} />
@@ -90,7 +93,7 @@ export default async function ReviewListingPage({ params, searchParams }: { para
       </dl>
       <section className="mt-10 border-t pt-7">
         <h2 className="text-2xl font-black">Decisiones</h2>
-        {(decisions.data ?? []).length ? <ol className="mt-4 space-y-3">{(decisions.data ?? []).map((item) => { const reviewer = item.reviewer as unknown as { display_name: string | null; username: string | null } | null; return <li key={item.id} className="border-l-4 border-accent pl-4"><strong>{LISTING_STATUS_LABELS[item.decision as ListingStatus]}</strong>{item.message ? <p className="mt-1 whitespace-pre-wrap">{item.message}</p> : null}<p className="mt-1 text-sm text-stone-500">{reviewer?.username ? `@${reviewer.username}` : reviewer?.display_name || "Staff"} · {formatDate(item.created_at)}</p></li>; })}</ol> : <p className="mt-3 text-stone-600">Sin decisiones todavía.</p>}
+        {(decisions.data ?? []).length ? <ol className="mt-4 space-y-3">{(decisions.data ?? []).map((item) => { const reviewer = item.reviewer as unknown as { display_name: string | null; username: string | null } | null; return <li key={item.id} className="border-l-4 border-accent pl-4"><strong>{item.decision === "approved" ? "Aprobado y publicado" : LISTING_STATUS_LABELS[item.decision as ListingStatus]}</strong>{item.message ? <p className="mt-1 whitespace-pre-wrap">{item.message}</p> : null}<p className="mt-1 text-sm text-stone-500">{reviewer?.username ? `@${reviewer.username}` : reviewer?.display_name || "Staff"} · {formatDate(item.created_at)}</p></li>; })}</ol> : <p className="mt-3 text-stone-600">Sin decisiones todavía.</p>}
       </section>
       <section className="mt-10 border-t pt-7">
         <h2 className="text-2xl font-black">Declaraciones</h2>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   deleteListingPhotoAction,
@@ -31,6 +31,21 @@ export function ListingPhotoManager({ listingId, initialPhotos, remainingSlots }
   const [message, setMessage] = useState<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const hasPendingDeletion = photos.some((photo) => photo.deletionPending);
+  const resultStorageKey = `listing-photo-manager-result:${listingId}`;
+
+  useEffect(() => {
+    const persisted = window.sessionStorage.getItem(resultStorageKey);
+    if (persisted) {
+      window.sessionStorage.removeItem(resultStorageKey);
+      const timeout = window.setTimeout(() => setMessage(persisted), 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [resultStorageKey]);
+
+  function refreshKeepingMessage(resultMessage: string) {
+    window.sessionStorage.setItem(resultStorageKey, resultMessage);
+    router.refresh();
+  }
 
   async function saveOrder(next: PrivateListingPhoto[], previous: PrivateListingPhoto[]) {
     setPhotos(next);
@@ -40,7 +55,7 @@ export function ListingPhotoManager({ listingId, initialPhotos, remainingSlots }
     if (!result.ok) setPhotos(previous);
     setMessage(result.message);
     setBusy(null);
-    if (result.ok) router.refresh();
+    if (result.ok) refreshKeepingMessage(result.message);
   }
 
   async function movePhoto(index: number, direction: -1 | 1) {
@@ -65,7 +80,7 @@ export function ListingPhotoManager({ listingId, initialPhotos, remainingSlots }
     if (result.ok) setPhotos((current) => current.map((photo) => ({ ...photo, isCover: photo.id === mediaId })));
     setMessage(result.message);
     setBusy(null);
-    if (result.ok) router.refresh();
+    if (result.ok) refreshKeepingMessage(result.message);
   }
 
   async function deletePhoto(mediaId: string) {
@@ -84,7 +99,7 @@ export function ListingPhotoManager({ listingId, initialPhotos, remainingSlots }
     }
     setMessage(result.message);
     setBusy(null);
-    if (result.ok) router.refresh();
+    if (result.ok) refreshKeepingMessage(result.message);
   }
 
   const disabled = busy !== null;

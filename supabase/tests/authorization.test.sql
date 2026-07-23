@@ -86,7 +86,7 @@ select is((select count(*) from public.listing_status_history where listing_id='
 reset role;
 insert into public.listings(id,owner_id,title,status) values('dddddddd-dddd-4ddd-8ddd-dddddddddddd','11111111-1111-4111-8111-111111111111','Publicado real','published');
 set local role anon;
-select is((select count(*) from public.listings), 1::bigint, '16 publico solo lee publicados');
+select is((select count(*) from public.listings), 0::bigint, '16 publico no lee filas completas; usa proyeccion publica estrecha');
 
 reset role;
 insert into public.listings(id,owner_id,title) values('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','11111111-1111-4111-8111-111111111111','Medios privados');

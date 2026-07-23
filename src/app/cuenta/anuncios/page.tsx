@@ -63,7 +63,7 @@ export default async function ListingsPage() {
                 {editable ? <Link href={`/cuenta/anuncios/${listing.id}/editar`} className="border border-stone-950 px-4 py-2 text-sm font-bold hover:bg-stone-950 hover:text-white">Editar</Link> : <span className="px-1 py-2 text-sm font-semibold text-stone-500">No editable</span>}
                 {listing.status === "rejected" ? <Link href={`/cuenta/anuncios/${listing.id}/vista-previa`} className="border border-red-800 px-4 py-2 text-sm font-bold text-red-900 hover:bg-red-800 hover:text-white">Ver motivo</Link> : null}
                 {listing.status === "changes_requested" ? <Link href={`/cuenta/anuncios/${listing.id}/vista-previa`} className="border border-amber-700 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-amber-700 hover:text-white">Ver mensaje</Link> : null}
-                <Link href={`/cuenta/anuncios/${listing.id}/vista-previa`} className="border px-4 py-2 text-sm font-bold hover:border-accent hover:text-accent">Vista previa</Link>
+                {listing.status === "published" ? <Link href={`/autos/${listing.id}`} className="bg-emerald-800 px-4 py-2 text-sm font-bold text-white">Ver publicación</Link> : <Link href={`/cuenta/anuncios/${listing.id}/vista-previa`} className="border px-4 py-2 text-sm font-bold hover:border-accent hover:text-accent">{listing.status === "rejected" ? "Ver detalle" : "Vista previa"}</Link>}
               </div>
             </article>
           );

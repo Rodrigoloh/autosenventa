@@ -33,11 +33,11 @@ export async function cleanupListingPhotoUpload(
     .select("id")
     .eq("id", reservation.listing_id)
     .eq("owner_id", viewerId)
-    .eq("status", "draft")
+    .in("status", ["draft", "changes_requested"])
     .is("deletion_started_at", null)
     .maybeSingle();
   if (!listing) {
-    return { ok: false, message: "Sólo puedes limpiar subidas de un borrador propio." };
+    return { ok: false, message: "Sólo puedes limpiar subidas de un anuncio propio editable." };
   }
 
   const { data: finalizedMedia, error: mediaError } = await supabase

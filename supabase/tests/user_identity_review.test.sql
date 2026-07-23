@@ -74,14 +74,14 @@ values('a3000000-0000-4000-8000-000000000002','a2000000-0000-4000-8000-000000000
 set local role authenticated;
 select set_config('request.jwt.claim.sub','a1000000-0000-4000-8000-000000000003',true);
 select is((select success from public.decide_listing_review('a2000000-0000-4000-8000-000000000003','approved',null)),true,'aprobación completa');
-select is((select status::text from public.listings where id='a2000000-0000-4000-8000-000000000003'),'approved','aprobado no se publica');
-select is((select published_at from public.listings where id='a2000000-0000-4000-8000-000000000003'),null,'aprobación no asigna fecha pública');
+select is((select status::text from public.listings where id='a2000000-0000-4000-8000-000000000003'),'published','aprobación publica atómicamente');
+select ok((select published_at is not null from public.listings where id='a2000000-0000-4000-8000-000000000003'),'aprobación asigna fecha pública');
 select is((select count(*) from public.listing_status_history where listing_id='a2000000-0000-4000-8000-000000000003' and actor_id='a1000000-0000-4000-8000-000000000003'),1::bigint,'historial registra actor de decisión');
 
 reset role;
 set local role anon;
 select is((select username from public.get_public_profile('OWNERPHASE5')),'ownerphase5','perfil público normaliza parámetro');
-select is((select count(*) from public.get_public_profile_listings('ownerphase5')),0::bigint,'approved no aparece como anuncio público');
+select is((select count(*) from public.get_public_profile_listings('ownerphase5')),1::bigint,'published aparece como anuncio público');
 select ok(not has_function_privilege('anon','public.decide_listing_review(uuid,text,text)','EXECUTE'),'anon no ejecuta decisiones');
 select ok(not exists(select 1 from pg_proc p cross join lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where p.oid='public.decide_listing_review(uuid,text,text)'::regprocedure and a.grantee=0 and a.privilege_type='EXECUTE'),'PUBLIC no conserva decisiones');
 

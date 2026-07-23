@@ -81,7 +81,7 @@ export async function getPrivateListingPhotoAvailability(
     .eq("id", listingId)
     .eq("owner_id", viewerId)
     .maybeSingle();
-  if (!listing || listing.status !== "draft" || listing.deletion_started_at) return 0;
+  if (!listing || !["draft", "changes_requested"].includes(listing.status) || listing.deletion_started_at) return 0;
 
   const admin = createAdminClient();
   const { count } = await admin.from("listing_photo_uploads")
@@ -96,7 +96,7 @@ export async function getPendingListingPhotoUploads(listingId: string, viewerId:
   const supabase = await createClient();
   const { data: listing } = await supabase.from("listings").select("id,status,deletion_started_at")
     .eq("id", listingId).eq("owner_id", viewerId).maybeSingle();
-  if (!listing || listing.status !== "draft" || listing.deletion_started_at) return [];
+  if (!listing || !["draft", "changes_requested"].includes(listing.status) || listing.deletion_started_at) return [];
   const admin = createAdminClient();
   const { data, error } = await admin.from("listing_photo_uploads")
     .select("id,expected_mime_type,expected_size_bytes,expires_at,created_at")
@@ -126,6 +126,30 @@ export async function getStaffListingPhotos(listingId: string) {
       signedUrl: signed && !signed.error ? signed.data.signedUrl : null,
       width: item.width, height: item.height, sortOrder: item.sort_order,
       isCover: item.is_cover, deletionPending: Boolean(item.deletion_started_at),
+    } satisfies PrivateListingPhoto;
+  }));
+}
+
+export async function getPublicListingPhotos(listingId: string) {
+  const admin = createAdminClient();
+  const { data: listing } = await admin.from("listings")
+    .select("id,status").eq("id", listingId).eq("status", "published").maybeSingle();
+  if (!listing) return null;
+  const { data: media, error } = await admin.from("listing_media")
+    .select("id,storage_path,width,height,sort_order,is_cover,deletion_started_at")
+    .eq("listing_id", listingId).is("deletion_started_at", null).order("sort_order");
+  if (error) throw new Error("No pudimos consultar las fotografías públicas.");
+  return Promise.all((media ?? []).map(async (item) => {
+    if (!item.width || !item.height) throw new Error("Una fotografía pública no tiene dimensiones válidas.");
+    const signed = await admin.storage.from("listing-media").createSignedUrl(item.storage_path, 600);
+    return {
+      id: item.id,
+      signedUrl: signed.error ? null : signed.data.signedUrl,
+      width: item.width,
+      height: item.height,
+      sortOrder: item.sort_order,
+      isCover: item.is_cover,
+      deletionPending: false,
     } satisfies PrivateListingPhoto;
   }));
 }

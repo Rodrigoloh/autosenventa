@@ -42,8 +42,8 @@ export async function reservePhotoUploadAction(input: unknown): Promise<ReserveP
     .eq("id", parsed.data.listingId)
     .eq("owner_id", viewer.id)
     .maybeSingle();
-  if (!listing || listing.status !== "draft") {
-    return { ok: false, message: "Sólo puedes subir fotografías a un borrador propio." };
+  if (!listing || !["draft", "changes_requested"].includes(listing.status)) {
+    return { ok: false, message: "Sólo puedes subir fotografías a un anuncio propio editable." };
   }
 
   const { data, error } = await supabase.rpc("reserve_listing_photo_upload", {
@@ -134,7 +134,7 @@ export async function finalizePhotoUploadAction(reservationId: string): Promise<
     .select("id,owner_id,status")
     .eq("id", reservation.listing_id)
     .maybeSingle();
-  if (!listing || listing.owner_id !== viewer.id || listing.status !== "draft") {
+  if (!listing || listing.owner_id !== viewer.id || !["draft", "changes_requested"].includes(listing.status)) {
     await cleanupRejectedUpload(admin, reservation);
     return { ok: false, message: "El anuncio ya no admite fotografías." };
   }
