@@ -20,6 +20,7 @@ import {
 } from "../src/lib/listing-photo-validation";
 import { DELETABLE_LISTING_STATUSES, EDITABLE_LISTING_STATUSES, listingDraftSchema, provisionalTitle } from "../src/lib/listing-validation";
 import { readinessItems, textMeetsMinimum, validReviewPrice } from "../src/lib/listing-review";
+import { parseStaffListingView, staffListingViewHref } from "../src/lib/staff-listing-views";
 
 const user = { id: "11111111-1111-4111-8111-111111111111", role: "user" as const, display_name: null };
 const staff = { ...user, role: "staff" as const };
@@ -66,6 +67,16 @@ test("resuelve guards user, staff y admin", () => {
   assert.equal(accessDecision(staff, ["staff", "admin"]), "allowed");
   assert.equal(accessDecision(staff, ["admin"]), "forbidden");
   assert.equal(accessDecision(admin, ["admin"]), "allowed");
+});
+
+test("acepta sólo vistas staff conocidas y genera rutas estables", () => {
+  assert.equal(parseStaffListingView(undefined), "all");
+  assert.equal(parseStaffListingView("pending"), "pending");
+  assert.equal(parseStaffListingView("legacy-approved"), "legacy-approved");
+  assert.equal(parseStaffListingView("published;drop table listings"), null);
+  assert.equal(parseStaffListingView(["pending", "published"]), null);
+  assert.equal(staffListingViewHref("all"), "/staff/anuncios");
+  assert.equal(staffListingViewHref("mine"), "/staff/anuncios?view=mine");
 });
 
 test("sólo admite redirecciones internas", () => {

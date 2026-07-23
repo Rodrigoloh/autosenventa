@@ -9,6 +9,7 @@ import type { ListingStatus } from "@/lib/constants";
 import { formatDate, formatMxn, LISTING_STATUS_LABELS } from "@/lib/listing-display";
 import { getStaffListingPhotos } from "@/lib/listing-media";
 import { createClient } from "@/lib/supabase/server";
+import { parseStaffListingView, STAFF_LISTING_VIEW_COPY, staffListingViewHref } from "@/lib/staff-listing-views";
 
 const visibleStatuses = ["submitted", "in_review", "changes_requested", "approved", "rejected", "published", "archived"];
 
@@ -35,7 +36,9 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 export default async function ReviewListingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const viewer = await requireRole(["staff", "admin"]);
   const { id } = await params;
-  const result = (await searchParams).result;
+  const query = await searchParams;
+  const result = query.result;
+  const returnView = parseStaffListingView(query.from) ?? "all";
   if (!z.uuid().safeParse(id).success) notFound();
   const supabase = await createClient();
   const { data } = await supabase.from("listings").select(
@@ -61,6 +64,7 @@ export default async function ReviewListingPage({ params, searchParams }: { para
 
   return (
     <article>
+      <Link href={staffListingViewHref(returnView)} className="mb-5 inline-flex min-h-11 items-center font-bold underline">← Volver a {STAFF_LISTING_VIEW_COPY[returnView].title}</Link>
       {result === "approved" ? <p role="status" className="mb-5 border border-emerald-700 bg-emerald-50 p-4 font-bold text-emerald-900">Anuncio aprobado. No fue publicado automáticamente.</p> : result === "changes_requested" ? <p role="status" className="mb-5 border border-amber-700 bg-amber-50 p-4 font-bold text-amber-900">Cambios solicitados al propietario.</p> : result === "rejected" ? <p role="status" className="mb-5 border border-red-700 bg-red-50 p-4 font-bold text-red-900">Anuncio rechazado.</p> : null}
       <header className="border-b pb-7">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">{LISTING_STATUS_LABELS[listing.status]}</p>
@@ -68,7 +72,7 @@ export default async function ReviewListingPage({ params, searchParams }: { para
         <div className="mt-4 border-l-4 border-accent pl-4"><p className="text-xs font-bold uppercase text-stone-500">Propietario</p><p className="mt-1 font-black">{listing.owner?.username ? `@${listing.owner.username}` : "Usuario sin username"}</p>{listing.owner?.display_name ? <p>{listing.owner.display_name}</p> : null}<div className="mt-2 flex flex-wrap gap-3 text-sm font-bold"><Link href={`/staff/usuarios/${listing.owner_id}`} className="underline">Ver usuario en staff</Link>{listing.owner?.username ? <Link href={`/u/${listing.owner.username}`} className="underline">Ver perfil público</Link> : null}</div></div>
         <div className="mt-6">{reviewControl}</div>
       </header>
-      {listing.status === "in_review" && (listing.reviewer_id === viewer.id || viewer.role === "admin") ? <ReviewDecisionForm listingId={id} /> : null}
+      {listing.status === "in_review" && (listing.reviewer_id === viewer.id || viewer.role === "admin") ? <ReviewDecisionForm listingId={id} returnView={returnView} /> : null}
       <div className="mt-8"><ListingPhotoGallery photos={photos} /></div>
       <dl className="mt-8 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
         <Detail label="Marca" value={listing.brands?.name} /><Detail label="Modelo" value={listing.models?.name} />

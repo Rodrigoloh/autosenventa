@@ -47,6 +47,8 @@ export async function submitListingForReviewAction(
   revalidatePath("/cuenta/anuncios");
   revalidatePath(`/cuenta/anuncios/${listingId}/editar`);
   revalidatePath(`/cuenta/anuncios/${listingId}/vista-previa`);
+  revalidatePath("/staff");
+  revalidatePath("/staff/anuncios");
   redirect(`/cuenta/anuncios/${listingId}/vista-previa`);
 }
 

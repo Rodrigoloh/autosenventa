@@ -35,20 +35,60 @@ export async function createConfirmedUser(admin: SupabaseClient, label: string, 
   const email = `e2e-${label}-${runId}@example.test`;
   const password = `E2e-${crypto.randomUUID()}!`;
   const username = `u${crypto.randomUUID().replaceAll("-", "").slice(0, 15)}`;
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: options?.withUsername === false ? {} : { username },
-  });
-  if (error || !data.user) throw error ?? new Error("Auth Admin no devolvió usuario.");
-  return { id: data.user.id, email, password, username: options?.withUsername === false ? null : username };
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const { data, error } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: options?.withUsername === false ? {} : { username },
+      });
+      if (!error && data.user) return { id: data.user.id, email, password, username: options?.withUsername === false ? null : username };
+      lastError = error ?? new Error("Auth Admin no devolvió usuario.");
+    } catch (error) {
+      lastError = error;
+    }
+
+    try {
+      const users = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const created = users.data.users.find((user) => user.email === email);
+      if (created) return { id: created.id, email, password, username: options?.withUsername === false ? null : username };
+    } catch {
+      // GoTrue puede seguir temporalmente ocupado; el siguiente intento conserva las mismas credenciales.
+    }
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+  throw lastError ?? new Error("Auth Admin no pudo crear el usuario E2E.");
 }
 
 export async function deleteUsers(admin: SupabaseClient, userIds: string[]) {
   for (const id of userIds) {
-    const { error } = await admin.auth.admin.deleteUser(id);
-    if (error && !error.message.toLowerCase().includes("not found")) throw error;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const { error } = await admin.auth.admin.deleteUser(id);
+        if (!error || error.message.toLowerCase().includes("not found")) {
+          lastError = null;
+          break;
+        }
+        lastError = error;
+      } catch (error) {
+        lastError = error;
+      }
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    }
+    if (lastError) {
+      const database = new pg.Client({ connectionString: e2eEnv.databaseUrl });
+      try {
+        await database.connect();
+        await database.query("delete from auth.users where id = $1", [id]);
+        lastError = null;
+      } finally {
+        await database.end().catch(() => undefined);
+      }
+    }
+    if (lastError) throw lastError;
   }
 }
 
