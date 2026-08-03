@@ -10,7 +10,7 @@ import type { ListingStatus } from "@/lib/constants";
 import { formatDate, formatMxn, LISTING_STATUS_LABELS } from "@/lib/listing-display";
 import { getStaffListingPhotos } from "@/lib/listing-media";
 import { createClient } from "@/lib/supabase/server";
-import { parseStaffListingView, STAFF_LISTING_VIEW_COPY, staffListingViewHref } from "@/lib/staff-listing-views";
+import { normalizeStaffListingSearch, parseStaffListingView, STAFF_LISTING_VIEW_COPY, staffListingViewHref } from "@/lib/staff-listing-views";
 
 const visibleStatuses = ["submitted", "in_review", "changes_requested", "approved", "rejected", "published", "paused", "archived"];
 
@@ -45,6 +45,7 @@ export default async function ReviewListingPage({ params, searchParams }: { para
   const query = await searchParams;
   const result = query.result;
   const returnView = parseStaffListingView(query.from) ?? "all";
+  const returnSearch = normalizeStaffListingSearch(query.q) ?? "";
   if (!z.uuid().safeParse(id).success) notFound();
   const supabase = await createClient();
   const { data } = await supabase.from("listings").select(
@@ -71,7 +72,7 @@ export default async function ReviewListingPage({ params, searchParams }: { para
 
   return (
     <article>
-      <Link href={staffListingViewHref(returnView)} className="mb-5 inline-flex min-h-11 items-center font-bold underline">← Volver a {STAFF_LISTING_VIEW_COPY[returnView].title}</Link>
+      <Link href={staffListingViewHref(returnView, returnSearch)} className="mb-5 inline-flex min-h-11 items-center font-bold underline">← Volver a {returnSearch ? `resultados de “${returnSearch}”` : STAFF_LISTING_VIEW_COPY[returnView].title}</Link>
       {result === "published" ? <p role="status" className="mb-5 border border-emerald-700 bg-emerald-50 p-4 font-bold text-emerald-900">Anuncio aprobado y publicado.</p> : result === "paused" ? <p role="status" className="mb-5 border border-amber-700 bg-amber-50 p-4 font-bold text-amber-900">Publicación pausada.</p> : result === "resumed" ? <p role="status" className="mb-5 border border-emerald-700 bg-emerald-50 p-4 font-bold text-emerald-900">Publicación reanudada.</p> : result === "returned_to_review" ? <p role="status" className="mb-5 border border-blue-800 bg-blue-50 p-4 font-bold text-blue-950">El anuncio regresó a revisión y quedó asignado a tu cuenta.</p> : result === "changes_requested" ? <p role="status" className="mb-5 border border-amber-700 bg-amber-50 p-4 font-bold text-amber-900">Cambios solicitados al propietario.</p> : result === "rejected" ? <p role="status" className="mb-5 border border-red-700 bg-red-50 p-4 font-bold text-red-900">Anuncio rechazado.</p> : null}
       <header className="border-b pb-7">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">{LISTING_STATUS_LABELS[listing.status]}</p>
@@ -81,7 +82,7 @@ export default async function ReviewListingPage({ params, searchParams }: { para
       </header>
       {listing.status === "published" || listing.status === "paused" ? <ListingPublicationControls listingId={id} status={listing.status} returnView={returnView} /> : null}
       {listing.status === "in_review" && (listing.reviewer_id === viewer.id || viewer.role === "admin") ? <ReviewDecisionForm listingId={id} returnView={returnView} /> : null}
-      {listing.status === "published" ? <Link href={`/autos/${id}`} className="mt-6 inline-flex bg-emerald-800 px-5 py-3 text-sm font-bold text-white">Ver publicación</Link> : null}
+      {listing.status === "published" ? <Link href={`/autos/${id}`} className="mt-6 inline-flex bg-emerald-800 px-5 py-3 text-sm font-bold text-white">Ver publicación pública</Link> : null}
       <div className="mt-8"><ListingPhotoGallery photos={photos} /></div>
       <dl className="mt-8 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
         <Detail label="Marca" value={listing.brands?.name} /><Detail label="Modelo" value={listing.models?.name} />

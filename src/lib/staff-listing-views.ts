@@ -58,6 +58,24 @@ export function parseStaffListingView(value: unknown): StaffListingView | null {
   return STAFF_LISTING_VIEWS.includes(value as StaffListingView) ? value as StaffListingView : null;
 }
 
-export function staffListingViewHref(view: StaffListingView) {
-  return view === "all" ? "/staff/anuncios" : `/staff/anuncios?view=${view}`;
+export function normalizeStaffListingSearch(value: unknown) {
+  if (value === undefined) return "";
+  if (typeof value !== "string") return null;
+  const normalized = value.normalize("NFKC").trim().replace(/\s+/g, " ");
+  if (normalized.length > 100 || /[\u0000-\u001f\u007f]/.test(normalized)) return null;
+  return normalized;
+}
+
+export function staffListingViewHref(view: StaffListingView, search = "") {
+  const params = new URLSearchParams();
+  if (view !== "all") params.set("view", view);
+  if (search) params.set("q", search);
+  const query = params.toString();
+  return `/staff/anuncios${query ? `?${query}` : ""}`;
+}
+
+export function staffListingDetailHref(id: string, view: StaffListingView, search = "") {
+  const params = new URLSearchParams({ from: view });
+  if (search) params.set("q", search);
+  return `/staff/anuncios/${id}?${params.toString()}`;
 }

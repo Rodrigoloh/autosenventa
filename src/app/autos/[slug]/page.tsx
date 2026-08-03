@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ListingPhotoGallery } from "@/components/listing-photo-gallery";
+import { getViewer } from "@/lib/auth";
 import { formatMxn } from "@/lib/listing-display";
 import { getPublicListingPhotos } from "@/lib/listing-media";
 import { createClient } from "@/lib/supabase/server";
@@ -32,9 +33,10 @@ export default async function AutoPage({ params }: { params: Promise<{ slug: str
   const { data } = await supabase.rpc("get_public_listing", { target_listing_id: id }).maybeSingle();
   if (!data) notFound();
   const listing = data as PublicListing;
-  const photos = await getPublicListingPhotos(id);
+  const [photos, viewer] = await Promise.all([getPublicListingPhotos(id), getViewer()]);
   if (!photos) notFound();
   return <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-12 lg:px-8"><article>
+    {viewer && ["staff", "admin"].includes(viewer.role) ? <aside className="mb-6 flex flex-wrap items-center justify-between gap-3 border bg-stone-50 px-4 py-3 text-sm" aria-label="Navegación staff"><span className="font-semibold text-stone-600">Vista pública</span><Link href={`/staff/anuncios/${listing.id}`} className="font-bold underline">Abrir en staff</Link></aside> : null}
     <header className="border-b pb-8">
       <p className="text-sm font-bold uppercase tracking-[0.18em] text-accent">{[listing.brand_name, listing.model_name].filter(Boolean).join(" · ")}</p>
       <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">{listing.title}</h1>

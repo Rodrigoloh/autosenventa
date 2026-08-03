@@ -20,7 +20,7 @@ import {
 } from "../src/lib/listing-photo-validation";
 import { DELETABLE_LISTING_STATUSES, EDITABLE_LISTING_STATUSES, listingDraftSchema, provisionalTitle } from "../src/lib/listing-validation";
 import { readinessItems, textMeetsMinimum, validReviewPrice } from "../src/lib/listing-review";
-import { parseStaffListingView, staffListingViewHref } from "../src/lib/staff-listing-views";
+import { normalizeStaffListingSearch, parseStaffListingView, staffListingDetailHref, staffListingViewHref } from "../src/lib/staff-listing-views";
 
 const user = { id: "11111111-1111-4111-8111-111111111111", role: "user" as const, display_name: null };
 const staff = { ...user, role: "staff" as const };
@@ -78,6 +78,10 @@ test("acepta sólo vistas staff conocidas y genera rutas estables", () => {
   assert.equal(parseStaffListingView(["pending", "published"]), null);
   assert.equal(staffListingViewHref("all"), "/staff/anuncios");
   assert.equal(staffListingViewHref("mine"), "/staff/anuncios?view=mine");
+  assert.equal(staffListingViewHref("published", "rotest"), "/staff/anuncios?view=published&q=rotest");
+  assert.equal(staffListingDetailHref(user.id, "published", "ro test"), `/staff/anuncios/${user.id}?from=published&q=ro+test`);
+  assert.equal(normalizeStaffListingSearch("  Rodrigo   MX-5  "), "Rodrigo MX-5");
+  assert.equal(normalizeStaffListingSearch(["rotest"]), null);
 });
 
 test("sólo admite redirecciones internas", () => {

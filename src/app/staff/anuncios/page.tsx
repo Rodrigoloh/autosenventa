@@ -6,9 +6,11 @@ import { formatDate, formatMxn, LISTING_STATUS_LABELS } from "@/lib/listing-disp
 import { createClient } from "@/lib/supabase/server";
 import {
   parseStaffListingView,
+  normalizeStaffListingSearch,
   STAFF_LISTING_VIEWS,
   STAFF_LISTING_VIEW_COPY,
   staffListingViewHref,
+  staffListingDetailHref,
   type StaffListingView,
 } from "@/lib/staff-listing-views";
 
@@ -17,6 +19,7 @@ type QueueListing = {
   year: number | null; city: string | null; state_region: string | null; price_mxn: number | string | null;
   submitted_at: string | null; updated_at: string; brands: { name: string } | null; models: { name: string } | null;
   reviewer: { username: string | null } | null; listing_media: Array<{ count: number }>;
+  owner: { username: string | null } | null;
 };
 
 function applyViewFilter<T extends {
@@ -45,11 +48,17 @@ export default async function ReviewQueuePage({ searchParams }: { searchParams: 
   const params = await searchParams;
   const view = parseStaffListingView(params.view);
   if (!view) redirect("/staff/anuncios?view=pending");
+  const search = normalizeStaffListingSearch(params.q);
+  if (search === null) redirect(staffListingViewHref(view));
   const supabase = await createClient();
-  const fields = "id,title,status,reviewer_id,year,city,state_region,price_mxn,submitted_at,updated_at,brands(name),models(name),reviewer:profiles!listings_reviewer_id_fkey(username),listing_media(count)";
+  const fields = "id,title,status,reviewer_id,year,city,state_region,price_mxn,submitted_at,updated_at,brands(name),models(name),owner:profiles!listings_owner_id_fkey(username),reviewer:profiles!listings_reviewer_id_fkey(username),listing_media(count)";
   const baseQuery = supabase.from("listings").select(fields);
   const { data } = await applyViewFilter(baseQuery, view, viewer.id).order("updated_at", { ascending: false });
-  const items = (data ?? []) as unknown as QueueListing[];
+  const viewItems = (data ?? []) as unknown as QueueListing[];
+  const needle = search.toLocaleLowerCase("es-MX");
+  const items = search ? viewItems.filter((item) => [
+    item.id, item.title, item.owner?.username, item.brands?.name, item.models?.name,
+  ].some((value) => value?.toLocaleLowerCase("es-MX").includes(needle))) : viewItems;
   const copy = STAFF_LISTING_VIEW_COPY[view];
 
   return <>
@@ -65,7 +74,7 @@ export default async function ReviewQueuePage({ searchParams }: { searchParams: 
       {STAFF_LISTING_VIEWS.map((candidate) => (
         <Link
           key={candidate}
-          href={staffListingViewHref(candidate)}
+          href={staffListingViewHref(candidate, search)}
           aria-current={candidate === view ? "page" : undefined}
           className={`border px-3 py-2 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${candidate === view ? "border-stone-950 bg-stone-950 text-white" : "hover:border-accent hover:text-accent"}`}
         >
@@ -73,6 +82,15 @@ export default async function ReviewQueuePage({ searchParams }: { searchParams: 
         </Link>
       ))}
     </nav>
+    <form method="get" action="/staff/anuncios" role="search" className="mt-5 flex flex-col gap-3 border bg-stone-50 p-4 sm:flex-row sm:items-end">
+      {view !== "all" ? <input type="hidden" name="view" value={view} /> : null}
+      <label className="flex-1 text-sm font-bold">Buscar anuncios
+        <input name="q" defaultValue={search} maxLength={100} placeholder="Username, marca, modelo, título o ID" className="mt-2 min-h-11 w-full border bg-white px-3 font-normal" />
+      </label>
+      <button className="min-h-11 bg-stone-950 px-5 text-sm font-bold text-white">Buscar</button>
+      {search ? <Link href={staffListingViewHref(view)} className="inline-flex min-h-11 items-center justify-center px-3 text-sm font-bold underline">Limpiar búsqueda</Link> : null}
+    </form>
+    {search ? <p className="mt-4 text-sm font-semibold text-stone-700">{items.length} {items.length === 1 ? "resultado" : "resultados"} para “{search}” en {copy.title.toLowerCase()}.</p> : null}
     {items.length ? (
       <div className="mt-8 divide-y border-y">
         {items.map((item) => (
@@ -84,12 +102,12 @@ export default async function ReviewQueuePage({ searchParams }: { searchParams: 
               <p className="mt-2 text-sm font-semibold">{formatMxn(item.price_mxn)} · {item.listing_media[0]?.count ?? 0} fotos</p>
               <p className="mt-1 text-xs text-stone-500">{item.submitted_at ? `Enviado ${formatDate(item.submitted_at)}` : `Actualizado ${formatDate(item.updated_at)}`}</p>
             </div>
-            <Link href={`/staff/anuncios/${item.id}?from=${view}`} className="border px-4 py-2 text-sm font-bold hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+            <Link href={staffListingDetailHref(item.id, view, search)} className="border px-4 py-2 text-sm font-bold hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
               {item.status === "submitted" ? "Revisar anuncio" : item.status === "published" ? "Ver publicación" : "Abrir anuncio"}
             </Link>
           </article>
         ))}
       </div>
-    ) : <p className="mt-8 border border-dashed p-6 text-stone-600">{copy.empty}</p>}
+    ) : <p className="mt-8 border border-dashed p-6 text-stone-600">{search ? `No encontramos anuncios para “${search}” dentro de ${copy.title.toLowerCase()}.` : copy.empty}</p>}
   </>;
 }
