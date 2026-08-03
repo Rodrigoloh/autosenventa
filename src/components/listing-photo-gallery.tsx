@@ -1,9 +1,29 @@
 import type { PrivateListingPhoto } from "@/lib/listing-media";
 import { MAX_LISTING_PHOTOS } from "@/lib/listing-photo-validation";
 
-export function ListingPhotoGallery({ photos, remainingSlots, showCapacity = true }: { photos: PrivateListingPhoto[]; remainingSlots?: number; showCapacity?: boolean }) {
+export function ListingPhotoGallery({ photos, remainingSlots, showCapacity = true, variant = "private", overlay }: { photos: PrivateListingPhoto[]; remainingSlots?: number; showCapacity?: boolean; variant?: "private" | "public"; overlay?: React.ReactNode }) {
   const remaining = remainingSlots ?? Math.max(0, MAX_LISTING_PHOTOS - photos.length);
   const visiblePhotos = photos.filter((photo) => !photo.deletionPending && photo.signedUrl);
+  if (variant === "public") {
+    const [cover, ...secondary] = visiblePhotos;
+    return <section aria-label="Galería del auto">
+      <div className="relative aspect-[4/3] overflow-hidden bg-zinc-900 sm:aspect-[16/10] lg:aspect-[16/8]">
+        {cover?.signedUrl ? <>
+          {/* Las URL firmadas expiran y no se pueden declarar como hosts estáticos. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={cover.signedUrl} alt={`Fotografía principal del vehículo`} width={cover.width} height={cover.height} className="h-full w-full object-cover" />
+        </> : <div className="driven-halftone h-full opacity-25" aria-label="Sin fotografía de portada" />}
+        <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(4,5,4,.96)_0%,rgba(4,5,4,.46)_30%,transparent_62%)]" />
+        {overlay ? <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8 lg:p-10">{overlay}</div> : null}
+      </div>
+      {secondary.length ? <ol className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-4">
+        {secondary.map((photo, index) => <li key={photo.id} className="relative aspect-[4/3] overflow-hidden bg-zinc-900">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo.signedUrl!} alt={`Fotografía ${index + 2} del vehículo`} width={photo.width} height={photo.height} className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]" />
+        </li>)}
+      </ol> : null}
+    </section>;
+  }
   return (
     <section aria-labelledby="photo-gallery-title" className="border-t pt-8">
       <div className="flex flex-wrap items-end justify-between gap-3">

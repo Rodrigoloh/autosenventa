@@ -49,6 +49,9 @@ test("marketplace público descubre únicamente publicaciones y conserva el fluj
     await expect(page.locator(`[data-listing-id="${featured.id}"]`)).toHaveCount(1);
     await expect(page.locator(`[data-listing-id="${searchable.id}"]`)).toHaveCount(1);
     await expect(page.locator(`[data-listing-id="${paused.id}"]`)).toHaveCount(0);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const desktopColumns = await page.locator("[data-public-listing-grid]").first().evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length);
+    expect(desktopColumns).toBeLessThanOrEqual(4);
 
     await page.getByLabel("Texto libre").fill("Searchable Especial");
     await page.getByRole("button", { name: "Aplicar filtros" }).click();
@@ -72,7 +75,7 @@ test("marketplace público descubre únicamente publicaciones y conserva el fluj
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/cuenta\/anuncios\/nuevo$/, { timeout: 60_000 });
 
-    for (const path of ["/", "/autos"]) {
+    for (const path of ["/", "/autos", `/autos/${searchable.id}`, `/u/${owner.username}`, "/eventos"]) {
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(path);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

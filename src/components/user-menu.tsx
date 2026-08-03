@@ -81,9 +81,9 @@ export function UserMenu({ username, displayName, role }: UserMenuProps) {
           if (event.key === "ArrowDown") { event.preventDefault(); openFromKeyboard("first"); }
           if (event.key === "ArrowUp") { event.preventDefault(); openFromKeyboard("last"); }
         }}
-        className="flex cursor-pointer items-center gap-2 font-bold"
+        className="flex cursor-pointer items-center gap-2 font-bold text-zinc-200 transition-colors hover:text-white"
       >
-        <span className="grid size-9 place-items-center rounded-full bg-stone-950 text-white">
+        <span className="grid size-9 place-items-center border border-white/15 bg-zinc-900 text-white">
           {(username ?? displayName ?? "U").slice(0, 1).toUpperCase()}
         </span>
         <span className="hidden sm:inline">{identity}</span>
@@ -94,16 +94,16 @@ export function UserMenu({ username, displayName, role }: UserMenuProps) {
           role="menu"
           aria-label="Opciones de usuario"
           onKeyDown={handleMenuKeys}
-          className="absolute right-0 z-20 mt-2 w-60 border bg-white p-4 shadow-lg"
+          className="public-raised absolute right-0 z-20 mt-3 w-60 border public-rule p-4 text-zinc-100 shadow-2xl shadow-black/50"
         >
           <p className="font-black">{username ? `@${username}` : "Usuario sin username"}</p>
-          {displayName ? <p className="text-sm text-stone-600">{displayName}</p> : null}
-          <p className="mt-1 text-xs font-bold uppercase text-stone-500">{roleLabels[role]}</p>
-          <div className="mt-4 flex flex-col gap-2">
-            <Link role="menuitem" href="/cuenta" onClick={() => setOpen(false)} className="hover:text-accent">Mi cuenta</Link>
-            {role !== "user" ? <Link role="menuitem" href="/staff" onClick={() => setOpen(false)} className="hover:text-accent">Panel staff</Link> : null}
+          {displayName ? <p className="text-sm text-zinc-400">{displayName}</p> : null}
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">{roleLabels[role]}</p>
+          <div className="mt-4 flex flex-col gap-3 border-t public-rule pt-4">
+            <Link role="menuitem" href="/cuenta" onClick={() => setOpen(false)} className="hover:text-orange-400">Mi cuenta</Link>
+            {role !== "user" ? <Link role="menuitem" href="/staff" onClick={() => setOpen(false)} className="hover:text-orange-400">Panel staff</Link> : null}
             <form action={signOut}>
-              <button role="menuitem" type="submit" className="font-medium hover:text-accent">Cerrar sesión</button>
+              <button role="menuitem" type="submit" className="font-medium hover:text-orange-400">Cerrar sesión</button>
             </form>
           </div>
         </div>

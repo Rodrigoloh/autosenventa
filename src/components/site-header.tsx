@@ -1,26 +1,27 @@
 import Link from "next/link";
+import { DrivenWordmark } from "@/components/driven-wordmark";
 import { UserMenu } from "@/components/user-menu";
 import { getViewer } from "@/lib/auth";
-import { SITE_NAME } from "@/lib/constants";
 
 export async function SiteHeader() {
   const viewer = await getViewer();
   const sellHref = viewer ? "/cuenta/anuncios/nuevo" : "/login?next=%2Fcuenta%2Fanuncios%2Fnuevo";
   return (
-    <header className="relative z-30 border-b border-white/10 bg-zinc-950 text-white">
-      <div className="mx-auto flex max-w-[90rem] flex-wrap items-center justify-between gap-x-6 px-5 py-4 lg:h-18 lg:flex-nowrap lg:px-8 lg:py-0">
-        <Link href="/" className="text-xl font-black lowercase tracking-[-0.055em]">
-          {SITE_NAME}
-        </Link>
-        <nav aria-label="Principal" className="order-3 mt-4 grid w-full grid-cols-4 items-center gap-1 border-t border-white/10 pt-3 text-center text-xs font-semibold sm:text-sm lg:order-none lg:mt-0 lg:flex lg:w-auto lg:gap-6 lg:border-0 lg:pt-0">
-          <Link href="/autos" className="py-1 hover:text-orange-400">Explorar</Link>
-          <Link href="/autos#buscar" className="py-1 hover:text-orange-400">Buscar</Link>
-          <Link href="/eventos" className="py-1 hover:text-orange-400">Eventos</Link>
-          <Link href={sellHref} className="py-1 font-bold text-orange-400 hover:text-orange-300">Vende tu auto</Link>
+    <header className="public-shell relative z-30 border-b public-rule">
+      <div className="mx-auto flex max-w-[90rem] flex-wrap items-center justify-between gap-x-8 px-5 py-5 lg:min-h-22 lg:flex-nowrap lg:px-8">
+        <div className="relative py-1">
+          <div className="driven-halftone absolute -inset-x-3 -inset-y-2 opacity-25" aria-hidden="true" />
+          <DrivenWordmark className="text-[1.7rem] sm:text-[2rem]" />
+        </div>
+        <nav aria-label="Principal" className="order-3 mt-5 grid w-full grid-cols-4 items-center border-t public-rule pt-4 text-center text-[11px] font-semibold sm:text-xs lg:order-none lg:mt-0 lg:flex lg:w-auto lg:gap-8 lg:border-0 lg:pt-0">
+          <Link href="/autos" className="py-1 text-zinc-300 transition-colors hover:text-white">Explorar</Link>
+          <Link href="/autos#buscar" className="py-1 text-zinc-300 transition-colors hover:text-white">Buscar</Link>
+          <Link href="/eventos" className="py-1 text-zinc-300 transition-colors hover:text-white">Eventos</Link>
+          <Link href={sellHref} className="py-1 font-bold text-orange-400 transition-colors hover:text-orange-300">Vende tu auto</Link>
         </nav>
-        <div className="text-sm font-medium">
+        <div className="text-xs font-semibold">
           {!viewer
-            ? <Link href="/login" className="hover:text-orange-400">Ingresar</Link>
+            ? <Link href="/login" className="border-b border-zinc-600 pb-1 text-zinc-200 transition-colors hover:border-orange-400 hover:text-orange-400">Ingresar</Link>
             : <UserMenu username={viewer.username ?? null} displayName={viewer.display_name ?? null} role={viewer.role} />}
         </div>
       </div>
