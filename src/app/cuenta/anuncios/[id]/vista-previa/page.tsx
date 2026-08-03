@@ -21,6 +21,10 @@ type PreviewListing = {
   brands: { name: string } | null; models: { name: string } | null;
 };
 
+type PostPublicationEvent = {
+  listing_id: string; action: "paused" | "resumed" | "returned_to_review"; reason: string | null; created_at: string;
+};
+
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return <div className="border-t py-4"><dt className="text-xs font-bold uppercase tracking-wide text-stone-500">{label}</dt><dd className="mt-1 font-semibold">{value || "Sin especificar"}</dd></div>;
 }
@@ -42,15 +46,19 @@ export default async function ListingPreviewPage({ params }: { params: Promise<{
   const photos = await getPrivateListingPhotos(id, viewer.id);
   const editable = EDITABLE_LISTING_STATUSES.includes(listing.status as (typeof EDITABLE_LISTING_STATUSES)[number]);
   const canSubmit = listing.status === "draft" || listing.status === "changes_requested";
-  const [readiness, decision] = await Promise.all([
+  const [readiness, decision, events] = await Promise.all([
     canSubmit ? supabase.rpc("get_listing_submission_readiness", { target_listing_id: id }) : Promise.resolve(null),
     supabase.from("listing_review_decisions").select("decision,message,created_at").eq("listing_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.rpc("get_owner_post_publication_events"),
   ]);
+  const publicationEvent = ((events.data ?? []) as PostPublicationEvent[]).find((event) => event.listing_id === id);
 
   return (
     <article>
-      {listing.status === "published" ? <div className="border-2 border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-950" role="status">Publicado. Tu anuncio ya está visible en el marketplace. <Link href={`/autos/${id}`} className="ml-2 underline">Ver publicación</Link></div> : <div className="border-2 border-amber-600 bg-amber-50 p-4 text-sm font-bold text-amber-950" role="note">Vista previa privada. Este anuncio todavía no está publicado.</div>}
-      {listing.status === "submitted" || listing.status === "in_review" ? <div className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">{listing.status === "submitted" ? "Enviado a revisión" : "En revisión"}{listing.submitted_at ? ` · ${formatDate(listing.submitted_at)}` : ""}</div> : null}
+      {listing.status === "published" ? <div className="border-2 border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-950" role="status">Publicado. {publicationEvent?.action === "resumed" ? "Tu anuncio está nuevamente visible en el marketplace." : "Tu anuncio ya está visible en el marketplace."} <Link href={`/autos/${id}`} className="ml-2 underline">Ver publicación</Link></div> : <div className="border-2 border-amber-600 bg-amber-50 p-4 text-sm font-bold text-amber-950" role="note">Vista previa privada. Este anuncio todavía no está publicado.</div>}
+      {listing.status === "submitted" || (listing.status === "in_review" && publicationEvent?.action !== "returned_to_review") ? <div className="mt-4 border border-emerald-700 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">{listing.status === "submitted" ? "Enviado a revisión" : "En revisión"}{listing.submitted_at ? ` · ${formatDate(listing.submitted_at)}` : ""}</div> : null}
+      {listing.status === "paused" ? <section className="mt-4 border border-amber-800 bg-amber-50 p-4 text-amber-950"><p className="text-sm font-bold uppercase tracking-wide">Publicación pausada</p><h2 className="mt-1 font-black">Tu anuncio no está visible actualmente.</h2>{publicationEvent?.reason ? <p className="mt-2 whitespace-pre-wrap">{publicationEvent.reason}</p> : null}{publicationEvent?.created_at ? <p className="mt-2 text-sm">Fecha: {formatDate(publicationEvent.created_at)}</p> : null}</section> : null}
+      {listing.status === "in_review" && publicationEvent?.action === "returned_to_review" ? <section className="mt-4 border border-blue-800 bg-blue-50 p-4 text-blue-950"><p className="text-sm font-bold uppercase tracking-wide">En revisión</p><h2 className="mt-1 font-black">Tu anuncio regresó a revisión.</h2><p className="mt-1 text-sm">El equipo está revisando nuevamente la publicación.</p>{publicationEvent.reason ? <p className="mt-2 whitespace-pre-wrap">{publicationEvent.reason}</p> : null}<p className="mt-2 text-sm">Fecha: {formatDate(publicationEvent.created_at)}</p></section> : null}
       {listing.status === "changes_requested" ? (
         <section className="mt-4 border border-amber-700 bg-amber-50 p-4 text-amber-950" aria-labelledby="review-update-heading">
           <p className="text-sm font-bold uppercase tracking-wide">Cambios solicitados</p>

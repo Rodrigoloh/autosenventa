@@ -72,6 +72,7 @@ test("resuelve guards user, staff y admin", () => {
 test("acepta sólo vistas staff conocidas y genera rutas estables", () => {
   assert.equal(parseStaffListingView(undefined), "all");
   assert.equal(parseStaffListingView("pending"), "pending");
+  assert.equal(parseStaffListingView("paused"), "paused");
   assert.equal(parseStaffListingView("legacy-approved"), null);
   assert.equal(parseStaffListingView("published;drop table listings"), null);
   assert.equal(parseStaffListingView(["pending", "published"]), null);
@@ -134,6 +135,7 @@ test("presenta estados del propietario con texto inequívoco", () => {
   assert.equal(LISTING_STATUS_LABELS.in_review, "En revisión");
   assert.equal(LISTING_STATUS_LABELS.changes_requested, "Cambios solicitados");
   assert.equal(LISTING_STATUS_LABELS.approved, "Aprobado");
+  assert.equal(LISTING_STATUS_LABELS.paused, "Publicación pausada");
   assert.equal(LISTING_STATUS_LABELS.rejected, "Rechazado");
 });
 

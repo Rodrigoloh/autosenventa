@@ -13,12 +13,19 @@ type DashboardListing = Record<string, unknown> & {
   status: ListingStatus; updated_at: string; brands: { name: string } | null; models: { name: string } | null;
 };
 
+type PostPublicationEvent = {
+  listing_id: string; action: "paused" | "resumed" | "returned_to_review"; reason: string | null; created_at: string;
+};
+
 export default async function ListingsPage() {
   const viewer = await requireUser();
   const supabase = await createClient();
-  const { data, error } = await supabase.from("listings").select(
-    "id,title,category_id,brand_id,model_id,variant,year,price_mxn,mileage_km,city,state_region,exterior_color,interior_color,body_style,transmission,drivetrain,fuel_type,engine,owner_description,ownership_history,maintenance_history,sale_reason,status,updated_at,brands(name),models(name)",
-  ).eq("owner_id", viewer.id).order("updated_at", { ascending: false });
+  const [{ data, error }, { data: eventsData }] = await Promise.all([
+    supabase.from("listings").select(
+      "id,title,category_id,brand_id,model_id,variant,year,price_mxn,mileage_km,city,state_region,exterior_color,interior_color,body_style,transmission,drivetrain,fuel_type,engine,owner_description,ownership_history,maintenance_history,sale_reason,status,updated_at,brands(name),models(name)",
+    ).eq("owner_id", viewer.id).order("updated_at", { ascending: false }),
+    supabase.rpc("get_owner_post_publication_events"),
+  ]);
 
   if (error) return (
     <section>
@@ -31,6 +38,10 @@ export default async function ListingsPage() {
   );
 
   const listings = (data ?? []) as unknown as DashboardListing[];
+  const latestEvents = new Map<string, PostPublicationEvent>();
+  for (const event of (eventsData ?? []) as PostPublicationEvent[]) {
+    if (!latestEvents.has(event.listing_id)) latestEvents.set(event.listing_id, event);
+  }
   if (!listings.length) return <EmptyState title="Mis anuncios" description="Todavía no has creado ningún anuncio." href="/cuenta/anuncios/nuevo" action="Crear anuncio" />;
 
   return (
@@ -43,6 +54,7 @@ export default async function ListingsPage() {
         {listings.map((listing) => {
           const editable = EDITABLE_LISTING_STATUSES.includes(listing.status as (typeof EDITABLE_LISTING_STATUSES)[number]);
           const completion = listingCompletion(listing);
+          const event = latestEvents.get(listing.id);
           return (
             <article key={listing.id} className="grid gap-5 py-7 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
@@ -58,6 +70,9 @@ export default async function ListingsPage() {
                   <div className="mt-1 h-2 bg-stone-200" aria-label={`${completion}% de información completada`}><div className="h-full bg-accent" style={{ width: `${completion}%` }} /></div>
                 </div>
                 <p className="mt-3 text-xs text-stone-500">Actualizado {formatDate(listing.updated_at)}</p>
+                {listing.status === "paused" ? <><p className="mt-3 font-bold text-amber-900">Tu anuncio no está visible actualmente.</p>{event?.reason ? <p className="mt-1 whitespace-pre-wrap text-sm text-stone-700">{event.reason}</p> : null}</> : null}
+                {listing.status === "in_review" && event?.action === "returned_to_review" ? <><p className="mt-3 font-bold text-blue-900">Tu anuncio regresó a revisión.</p><p className="mt-1 text-sm text-stone-700">El equipo está revisando nuevamente la publicación.</p>{event.reason ? <p className="mt-1 whitespace-pre-wrap text-sm text-stone-700">{event.reason}</p> : null}</> : null}
+                {listing.status === "published" && event?.action === "resumed" ? <p className="mt-3 font-bold text-emerald-800">Tu anuncio está nuevamente visible en el marketplace.</p> : null}
               </div>
               <div className="flex flex-wrap gap-2 lg:justify-end">
                 {editable ? <Link href={`/cuenta/anuncios/${listing.id}/editar`} className="border border-stone-950 px-4 py-2 text-sm font-bold hover:bg-stone-950 hover:text-white">Editar</Link> : <span className="px-1 py-2 text-sm font-semibold text-stone-500">No editable</span>}

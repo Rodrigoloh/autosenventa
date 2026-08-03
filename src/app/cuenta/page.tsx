@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 type AccountUpdate = {
   id: string;
   title: string;
-  status: "changes_requested" | "published" | "rejected";
+  status: "changes_requested" | "in_review" | "published" | "paused" | "rejected";
 };
 
 type ReviewDecision = {
@@ -17,16 +17,28 @@ type ReviewDecision = {
   created_at: string;
 };
 
+type PostPublicationEvent = {
+  listing_id: string;
+  action: "paused" | "resumed" | "returned_to_review";
+  reason: string | null;
+  created_at: string;
+};
+
 export default async function AccountPage() {
   const viewer = await requireUser();
   const supabase = await createClient();
-  const { data: updatesData } = await supabase
-    .from("listings")
-    .select("id,title,status")
-    .eq("owner_id", viewer.id)
-    .in("status", ["changes_requested", "published", "rejected"])
-    .order("updated_at", { ascending: false });
-  const updates = (updatesData ?? []) as AccountUpdate[];
+  const [{ data: updatesData }, { data: eventsData }] = await Promise.all([
+    supabase.from("listings").select("id,title,status").eq("owner_id", viewer.id)
+      .in("status", ["changes_requested", "in_review", "published", "paused", "rejected"])
+      .order("updated_at", { ascending: false }),
+    supabase.rpc("get_owner_post_publication_events"),
+  ]);
+  const latestEvents = new Map<string, PostPublicationEvent>();
+  for (const event of (eventsData ?? []) as PostPublicationEvent[]) {
+    if (!latestEvents.has(event.listing_id)) latestEvents.set(event.listing_id, event);
+  }
+  const updates = ((updatesData ?? []) as AccountUpdate[]).filter((listing) =>
+    listing.status !== "in_review" || latestEvents.get(listing.id)?.action === "returned_to_review");
   const { data: decisionsData } = updates.length
     ? await supabase
       .from("listing_review_decisions")
@@ -51,14 +63,23 @@ export default async function AccountPage() {
         <div className="mt-5 divide-y border-y">
           {updates.map((listing) => {
             const decisionDate = decisionDates.get(listing.id);
+            const event = latestEvents.get(listing.id);
+            const title = listing.status === "changes_requested" ? "Tu anuncio requiere cambios."
+              : listing.status === "paused" ? "Publicación pausada"
+                : listing.status === "in_review" ? "Tu anuncio regresó a revisión."
+                  : listing.status === "published" ? "Tu anuncio ya está publicado."
+                    : "Tu anuncio fue rechazado.";
             return (
               <article key={listing.id} className="py-5">
-                <p className="font-black">{listing.status === "changes_requested" ? "Tu anuncio requiere cambios." : listing.status === "published" ? "Tu anuncio ya está publicado." : "Tu anuncio fue rechazado."}</p>
+                <p className="font-black">{title}</p>
                 <p className="mt-1 text-sm font-semibold text-stone-700">{listing.title}</p>
-                {listing.status === "published" ? <p className="mt-2 text-sm text-stone-600">Tu anuncio ya está visible en el marketplace.</p> : null}
-                {decisionDate ? <p className="mt-2 text-xs text-stone-500">Decisión del {formatDate(decisionDate)}</p> : null}
+                {listing.status === "published" ? <p className="mt-2 text-sm text-stone-600">{event?.action === "resumed" ? "Tu anuncio está nuevamente visible en el marketplace." : "Tu anuncio ya está visible en el marketplace."}</p> : null}
+                {listing.status === "paused" ? <p className="mt-2 text-sm text-stone-600">Tu anuncio no está visible actualmente.</p> : null}
+                {listing.status === "in_review" ? <p className="mt-2 text-sm text-stone-600">El equipo está revisando nuevamente la publicación.</p> : null}
+                {(listing.status === "paused" || listing.status === "in_review") && event?.reason ? <p className="mt-2 whitespace-pre-wrap text-sm">{event.reason}</p> : null}
+                {event && ["paused", "in_review", "published"].includes(listing.status) ? <p className="mt-2 text-xs text-stone-500">Actualización del {formatDate(event.created_at)}</p> : decisionDate ? <p className="mt-2 text-xs text-stone-500">Decisión del {formatDate(decisionDate)}</p> : null}
                 <Link href={listing.status === "published" ? `/autos/${listing.id}` : `/cuenta/anuncios/${listing.id}/${listing.status === "changes_requested" ? "editar" : "vista-previa"}`} className="mt-3 inline-flex min-h-11 items-center font-bold underline">
-                  {listing.status === "changes_requested" ? "Editar y corregir" : listing.status === "published" ? "Ver publicación" : "Ver motivo"}
+                  {listing.status === "changes_requested" ? "Editar y corregir" : listing.status === "published" ? "Ver publicación" : listing.status === "rejected" ? "Ver motivo" : "Ver detalle"}
                 </Link>
               </article>
             );

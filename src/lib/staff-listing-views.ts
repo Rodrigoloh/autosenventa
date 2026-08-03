@@ -5,6 +5,7 @@ export const STAFF_LISTING_VIEWS = [
   "mine",
   "changes-requested",
   "published",
+  "paused",
 ] as const;
 
 export type StaffListingView = (typeof STAFF_LISTING_VIEWS)[number];
@@ -43,6 +44,11 @@ export const STAFF_LISTING_VIEW_COPY: Record<StaffListingView, {
     title: "Publicados",
     empty: "No hay anuncios publicados.",
     countLabel: (count) => `${count} ${count === 1 ? "anuncio publicado" : "anuncios publicados"}`,
+  },
+  paused: {
+    title: "Publicaciones pausadas",
+    empty: "No hay publicaciones pausadas.",
+    countLabel: (count) => `${count} ${count === 1 ? "publicación pausada" : "publicaciones pausadas"}`,
   },
 };
 

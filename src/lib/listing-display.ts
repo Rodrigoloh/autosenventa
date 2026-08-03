@@ -7,6 +7,7 @@ export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   changes_requested: "Cambios solicitados",
   approved: "Aprobado",
   published: "Publicado",
+  paused: "Publicación pausada",
   rejected: "Rechazado",
   archived: "Archivado",
 };

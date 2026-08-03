@@ -10,6 +10,7 @@ export const LISTING_STATUSES = [
   "changes_requested",
   "approved",
   "published",
+  "paused",
   "rejected",
   "archived",
 ] as const;

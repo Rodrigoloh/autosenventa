@@ -34,6 +34,7 @@ test("dashboard staff enlaza conteos y aplica filtros allowlisted en servidor", 
     { owner_id: normalUser.id, title: "Cambios dashboard", status: "changes_requested", submitted_at: now },
     { owner_id: normalUser.id, title: "Rechazado dashboard", status: "rejected", submitted_at: now },
     { owner_id: normalUser.id, title: "Publicado dashboard", status: "published", submitted_at: now, published_at: now },
+    { owner_id: normalUser.id, title: "Pausado dashboard", status: "paused", submitted_at: now, published_at: now },
   ]).select("id,status,reviewer_id");
   expect(inserted.error).toBeNull();
   const listings = inserted.data ?? [];
@@ -44,6 +45,7 @@ test("dashboard staff enlaza conteos y aplica filtros allowlisted en servidor", 
   const changesId = byStatus("changes_requested")[0].id;
   const rejectedId = byStatus("rejected")[0].id;
   const publishedId = byStatus("published")[0].id;
+  const pausedId = byStatus("paused")[0].id;
 
   const listingLink = (id: string) => page.locator(`a[href^="/staff/anuncios/${id}"]`);
   const openView = async (view: string, title: string) => {
@@ -90,6 +92,11 @@ test("dashboard staff enlaza conteos y aplica filtros allowlisted en servidor", 
 
     await openView("published", "Publicados");
     await expect(listingLink(publishedId)).toHaveCount(1);
+    await expect(listingLink(pausedId)).toHaveCount(0);
+
+    await openView("paused", "Publicaciones pausadas");
+    await expect(listingLink(pausedId)).toHaveCount(1);
+    await expect(listingLink(publishedId)).toHaveCount(0);
 
     await page.goto("/staff/anuncios?view=published%3Bdrop-table-listings");
     await expect(page).toHaveURL(/\/staff\/anuncios\?view=pending$/);
@@ -100,6 +107,7 @@ test("dashboard staff enlaza conteos y aplica filtros allowlisted en servidor", 
       ["mine", "Mis revisiones activas"],
       ["changes-requested", "Cambios solicitados"],
       ["published", "Publicados"],
+      ["paused", "Publicaciones pausadas"],
     ] as const;
     await page.goto("/staff");
     if (new URL(page.url()).pathname === "/login") await login(page, staff.email, staff.password, /\/staff$/);
@@ -122,7 +130,7 @@ test("usuario normal no abre vistas filtradas de staff", async ({ page }) => {
   const user = await createConfirmedUser(admin, "dashboard-guard-user");
   try {
     await login(page, user.email, user.password, /\/cuenta$/);
-    for (const view of ["pending", "in-review", "mine", "changes-requested", "published"]) {
+    for (const view of ["pending", "in-review", "mine", "changes-requested", "published", "paused"]) {
       await page.goto(`/staff/anuncios?view=${view}`);
       await expect(page).toHaveURL(/\/cuenta$/, { timeout: 60_000 });
     }

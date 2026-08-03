@@ -10,12 +10,13 @@ export default async function StaffPage() {
   const viewer = await requireRole(["staff", "admin"]);
   const supabase = await createClient();
   const countStatus = (status: string) => supabase.from("listings").select("id", { count: "exact", head: true }).eq("status", status);
-  const [pending, inReview, mine, changes, published, users] = await Promise.all([
+  const [pending, inReview, mine, changes, published, paused, users] = await Promise.all([
     supabase.from("listings").select("id", { count: "exact", head: true }).eq("status", "submitted").is("reviewer_id", null),
     countStatus("in_review"),
     supabase.from("listings").select("id", { count: "exact", head: true }).eq("status", "in_review").eq("reviewer_id", viewer.id),
     countStatus("changes_requested"),
     countStatus("published"),
+    countStatus("paused"),
     supabase.from("profiles").select("id", { count: "exact", head: true }),
   ]);
   const listingCard = (label: string, count: number | null, view: StaffListingView): DashboardCard => ({
@@ -27,6 +28,7 @@ export default async function StaffPage() {
     listingCard("Mis revisiones activas", mine.count, "mine"),
     listingCard("Cambios solicitados", changes.count, "changes-requested"),
     listingCard("Publicados", published.count, "published"),
+    listingCard("Publicaciones pausadas", paused.count, "paused"),
     { label: "Usuarios registrados", count: users.count ?? 0, href: "/staff/usuarios" },
   ];
 
