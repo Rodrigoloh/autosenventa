@@ -19,7 +19,7 @@ export function FeaturedListings({ listings }: { listings: PublicListingSummary[
   return (
     <section aria-label="Auto destacado" className="public-shell relative px-0 sm:px-5 lg:px-8">
       <div className="mx-auto grid max-w-7xl gap-1 lg:h-[25rem] lg:grid-cols-[minmax(0,2fr)_minmax(19rem,1fr)]">
-        <div className="group relative min-h-[24rem] overflow-hidden bg-zinc-900 sm:min-h-[28rem] lg:min-h-0">
+        <div className="group relative min-h-[24rem] overflow-hidden rounded-md bg-zinc-900 sm:min-h-[28rem] lg:min-h-0">
           <Link href={`/autos/${listing.id}`} aria-label={`Ver ${title}`} className="absolute inset-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-orange-500">
           {cover?.url ? <Image src={cover.url} alt={title} fill priority unoptimized sizes="(min-width: 1024px) 75vw, 100vw" className="object-cover transition duration-700 group-hover:scale-[1.015]" /> : <div className="grid h-full place-items-center text-xs font-bold uppercase tracking-[0.25em] text-zinc-600">Fotografía pendiente</div>}
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(4,5,4,.92)_0%,rgba(4,5,4,.38)_32%,transparent_60%)]" />
@@ -34,16 +34,16 @@ export function FeaturedListings({ listings }: { listings: PublicListingSummary[
             </div>
           </div>
           </Link>
-          {listings.length > 1 ? <div className="absolute bottom-5 right-4 z-10 flex items-center bg-black/65 backdrop-blur sm:bottom-6 sm:right-6" aria-label="Cambiar auto destacado">
-            <button type="button" onClick={() => change(-1)} aria-label="Destacado anterior" className="grid size-9 place-items-center text-white transition-colors hover:bg-orange-600"><ArrowLeft className="size-3.5" /></button>
-            <span className="border-x border-white/15 px-2.5 py-2.5 text-[9px] font-bold tabular-nums text-zinc-300">{String(activeIndex + 1).padStart(2, "0")} / {String(listings.length).padStart(2, "0")}</span>
-            <button type="button" onClick={() => change(1)} aria-label="Siguiente destacado" className="grid size-9 place-items-center text-white transition-colors hover:bg-orange-600"><ArrowRight className="size-3.5" /></button>
+          {listings.length > 1 ? <div className="absolute bottom-5 right-4 z-10 flex items-center gap-1.5 sm:bottom-6 sm:right-6" aria-label="Cambiar auto destacado">
+            <button type="button" onClick={() => change(-1)} aria-label="Destacado anterior" className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/55 text-white backdrop-blur transition-colors hover:border-orange-500 hover:bg-orange-600"><ArrowLeft className="size-3.5" /></button>
+            <span className="rounded-full border border-white/20 bg-black/55 px-2.5 py-2.5 text-[9px] font-bold tabular-nums text-zinc-300 backdrop-blur">{String(activeIndex + 1).padStart(2, "0")} / {String(listings.length).padStart(2, "0")}</span>
+            <button type="button" onClick={() => change(1)} aria-label="Siguiente destacado" className="grid size-9 place-items-center rounded-full border border-white/25 bg-black/55 text-white backdrop-blur transition-colors hover:border-orange-500 hover:bg-orange-600"><ArrowRight className="size-3.5" /></button>
           </div> : null}
         </div>
         <div className="grid h-20 grid-cols-3 gap-1 sm:h-28 lg:h-full lg:grid-cols-1 lg:grid-rows-[3fr_2fr]">
-          <div className="relative overflow-hidden bg-zinc-900">{photos[1]?.url ? <Image src={photos[1].url} alt="" fill unoptimized sizes="(min-width: 1024px) 33vw, 33vw" className="object-cover" /> : null}</div>
+          <div className="relative overflow-hidden rounded-md bg-zinc-900">{photos[1]?.url ? <Image src={photos[1].url} alt="" fill unoptimized sizes="(min-width: 1024px) 33vw, 33vw" className="object-cover" /> : null}</div>
           <div className="contents lg:grid lg:grid-cols-2 lg:gap-1">
-            {[2, 3].map((index) => <div key={photos[index]?.id ?? index} className="relative overflow-hidden bg-zinc-900">{photos[index]?.url ? <Image src={photos[index].url} alt="" fill unoptimized sizes="(min-width: 1024px) 17vw, 33vw" className="object-cover" /> : null}</div>)}
+            {[2, 3].map((index) => <div key={photos[index]?.id ?? index} className="relative overflow-hidden rounded-md bg-zinc-900">{photos[index]?.url ? <Image src={photos[index].url} alt="" fill unoptimized sizes="(min-width: 1024px) 17vw, 33vw" className="object-cover" /> : null}</div>)}
           </div>
         </div>
       </div>

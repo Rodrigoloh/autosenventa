@@ -12,7 +12,7 @@ export function PublicListingCard({ listing }: { listing: PublicListingSummary }
   return (
     <article className="group min-w-0" data-listing-id={listing.id}>
       <Link href={`/autos/${listing.id}`} className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange-500">
-        <div className="relative aspect-[4/3] overflow-hidden bg-zinc-900">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-white/10 bg-zinc-900">
           {cover?.url ? (
             <Image src={cover.url} alt={vehicle} fill unoptimized sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" className="object-cover transition duration-500 ease-out group-hover:scale-[1.035]" />
           ) : <div className="grid h-full place-items-center bg-zinc-900 text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-600">Fotografía pendiente</div>}

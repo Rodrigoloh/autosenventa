@@ -4,14 +4,14 @@
   --background: #fafaf9;
   --foreground: #1c1917;
   --accent: #b0442f;
-  --driven-ink: #0b0d0c;
-  --driven-charcoal: #121513;
-  --driven-raised: #191d1a;
+  --driven-ink: #0c0e0d;
+  --driven-charcoal: #111312;
+  --driven-raised: #171918;
   --driven-line: #303530;
   --driven-paper: #e7e5df;
   --driven-muted: #989d97;
   --driven-green: #718573;
-  --driven-orange: #d96532;
+  --driven-orange: #eb5a28;
 }
 
 @theme inline {
@@ -48,11 +48,8 @@ button, select { cursor: pointer; }
 .public-field:focus { border-color: var(--driven-green); outline: 1px solid var(--driven-green); outline-offset: 1px; }
 
 .driven-wordmark {
-  display: inline-block;
-  color: var(--driven-paper);
-  font-weight: 900;
-  letter-spacing: -0.06em;
-  line-height: .9;
+  display: block;
+  line-height: 0;
 }
 
 .driven-halftone {

@@ -83,7 +83,7 @@ export function UserMenu({ username, displayName, role }: UserMenuProps) {
         }}
         className="flex cursor-pointer items-center gap-2 font-bold text-zinc-200 transition-colors hover:text-white"
       >
-        <span className="grid size-9 place-items-center border border-white/15 bg-zinc-900 text-white">
+        <span className="grid size-9 place-items-center rounded-full border border-white/15 bg-zinc-900 text-white">
           {(username ?? displayName ?? "U").slice(0, 1).toUpperCase()}
         </span>
         <span className="hidden sm:inline">{identity}</span>

@@ -15,7 +15,7 @@ export default async function HomePage() {
     <main className="public-shell min-w-0 flex-1">
       {highlights.length ? <FeaturedListings listings={highlights} /> : <section className="grid min-h-[22rem] place-items-center px-5 text-center"><div><p className="editorial-kicker">Selección driven-mx</p><h1 className="mt-2 text-2xl font-semibold tracking-tight">Los próximos autos están por llegar.</h1></div></section>}
       <section className="px-5 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 border-b public-rule py-4 lg:flex-row lg:items-center">
+        <div className="public-raised mx-auto mt-4 flex max-w-7xl flex-col gap-3 rounded-md border public-rule px-4 py-3 lg:flex-row lg:items-center">
           <h2 className="shrink-0 text-sm font-bold text-zinc-100">Explorar autos</h2>
           <form action="/autos" role="search" className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]">
             <label className="sr-only" htmlFor="home-brand">Marca</label><input id="home-brand" name="marca" placeholder="Marca" className="public-field h-9 min-w-0 px-3 text-xs placeholder:text-zinc-600" />

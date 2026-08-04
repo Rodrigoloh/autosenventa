@@ -40,7 +40,9 @@ test("marketplace público descubre únicamente publicaciones y conserva el fluj
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "driven-mx", exact: true })).toBeVisible();
+    const wordmark = page.getByRole("link", { name: "driven-mx", exact: true });
+    await expect(wordmark).toBeVisible();
+    await expect(wordmark.locator("img")).toHaveAttribute("src", /drvn-mx-logo/);
     await expect(page.locator(`[data-listing-id="${featured.id}"]`).first()).toBeVisible();
     await expect(page.locator(`[data-listing-id="${searchable.id}"]`).first()).toBeVisible();
     await expect(page.locator(`[data-listing-id="${paused.id}"]`)).toHaveCount(0);
