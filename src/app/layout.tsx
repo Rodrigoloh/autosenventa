@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 import { SITE_NAME } from "@/lib/constants";
+import { getViewer } from "@/lib/auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,11 +21,13 @@ export const metadata: Metadata = {
   description: "Automóviles interesantes, publicados por sus propietarios.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const viewer = await getViewer();
+  const sellHref = viewer ? "/cuenta/anuncios/nuevo" : "/login?next=%2Fcuenta%2Fanuncios%2Fnuevo";
   return (
     <html
       lang="es-MX"
@@ -32,6 +36,7 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col bg-stone-50 text-stone-950">
         <SiteHeader />
         {children}
+        <SiteFooter sellHref={sellHref} />
       </body>
     </html>
   );

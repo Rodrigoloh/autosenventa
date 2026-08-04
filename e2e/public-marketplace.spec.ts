@@ -40,7 +40,7 @@ test("marketplace público descubre únicamente publicaciones y conserva el fluj
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
-    const wordmark = page.getByRole("link", { name: "driven-mx", exact: true });
+    const wordmark = page.getByRole("link", { name: "driven-mx", exact: true }).first();
     await expect(wordmark).toBeVisible();
     await expect(wordmark.locator("img")).toHaveAttribute("src", /drvn-mx-logo/);
     await expect(page.locator(`[data-listing-id="${featured.id}"]`).first()).toBeVisible();
@@ -65,12 +65,20 @@ test("marketplace público descubre únicamente publicaciones y conserva el fluj
     await expect(page.locator(`[data-listing-id="${featured.id}"]`)).toHaveCount(0);
     await page.locator(`[data-listing-id="${searchable.id}"] a`).click();
     await expect(page).toHaveURL(new RegExp(`/autos/${searchable.id}$`));
+    await expect(page.getByRole("heading", { name: new RegExp(`${model.brands.name} ${model.name}`) })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Galería" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Contactar al vendedor/ })).toHaveAttribute("href", `/u/${owner.username}`);
+    await expect(page.getByRole("contentinfo").getByRole("link", { name: "driven-mx" })).toBeVisible();
 
-    await page.getByRole("link", { name: "Eventos" }).click();
+    await page.getByRole("link", { name: "Nosotros" }).first().click();
+    await expect(page).toHaveURL(/\/nosotros$/);
+    await expect(page.getByRole("heading", { name: "Un lugar para descubrir y publicar autos interesantes." })).toBeVisible();
+
+    await page.getByRole("banner").getByRole("link", { name: "Eventos" }).click();
     await expect(page).toHaveURL(/\/eventos$/);
     await expect(page.getByRole("heading", { name: "Eventos" })).toBeVisible();
 
-    const sell = page.getByRole("link", { name: "Vende tu auto" });
+    const sell = page.getByRole("banner").getByRole("link", { name: "Vende tu auto" });
     await expect(sell).toHaveAttribute("href", "/login?next=%2Fcuenta%2Fanuncios%2Fnuevo");
     await sell.click();
     await expect(page).toHaveURL(/\/login\?next=%2Fcuenta%2Fanuncios%2Fnuevo$/);
@@ -80,7 +88,7 @@ test("marketplace público descubre únicamente publicaciones y conserva el fluj
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/cuenta\/anuncios\/nuevo$/, { timeout: 60_000 });
 
-    for (const path of ["/", "/autos", `/autos/${searchable.id}`, `/u/${owner.username}`, "/eventos"]) {
+    for (const path of ["/", "/autos", `/autos/${searchable.id}`, `/u/${owner.username}`, "/eventos", "/nosotros", "/terminos", "/privacidad"]) {
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(path);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
