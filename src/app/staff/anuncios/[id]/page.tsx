@@ -54,12 +54,15 @@ export default async function ReviewListingPage({ params, searchParams }: { para
   if (!data || !visibleStatuses.includes(data.status)) notFound();
   const listing = data as unknown as ReviewListing;
 
-  const [photos, submission, history, decisions, publicationEvents] = await Promise.all([
+  const [photos, submission, history, decisions, publicationEvents, richOwnership, richDocumentation, richEquipment, richMods, richFlaws, richService, richVideos] = await Promise.all([
     getStaffListingPhotos(id),
     supabase.from("listing_submissions").select("attest_owner_authorized,attest_information_truthful,attest_modifications_and_issues_disclosed,attest_legal_documentation,attestation_version,created_at").eq("listing_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("listing_status_history").select("id,from_status,to_status,created_at,actor:profiles!listing_status_history_actor_id_fkey(display_name)").eq("listing_id", id).order("created_at", { ascending: true }),
     supabase.from("listing_review_decisions").select("id,decision,message,created_at,reviewer:profiles!listing_review_decisions_reviewer_id_fkey(display_name,username)").eq("listing_id", id).order("created_at", { ascending: true }),
     supabase.from("listing_post_publication_events").select("id,action,reason,created_at,actor:profiles!listing_post_publication_events_actor_id_fkey(display_name,username)").eq("listing_id", id).order("created_at", { ascending: true }),
+    supabase.from("listing_ownership_details").select("*").eq("listing_id",id).maybeSingle(),
+    supabase.from("listing_documentation").select("*").eq("listing_id",id).maybeSingle(),
+    supabase.from("listing_equipment").select("*").eq("listing_id",id),supabase.from("listing_modifications").select("*").eq("listing_id",id),supabase.from("listing_flaws").select("*").eq("listing_id",id),supabase.from("listing_service_records").select("*").eq("listing_id",id),supabase.from("listing_videos").select("*").eq("listing_id",id),
   ]);
   const attestation = submission.data;
   const reviewControl = listing.status === "submitted"
@@ -98,6 +101,7 @@ export default async function ReviewListingPage({ params, searchParams }: { para
         <Detail label="Mantenimiento" value={listing.maintenance_history} /><Detail label="Modificaciones" value={listing.modifications} />
         <Detail label="Problemas conocidos" value={listing.known_issues} /><Detail label="Motivo de venta" value={listing.sale_reason} />
       </dl>
+      <section className="mt-10 border-t pt-7"><h2 className="text-2xl font-black">Ficha enriquecida</h2><dl className="mt-5 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3"><Detail label="VIN/NIV completo (staff)" value={richOwnership.data?.vin}/><Detail label="Desde" value={[richOwnership.data?.owned_since_month,richOwnership.data?.owned_since_year].filter(Boolean).join("/")}/><Detail label="Propietarios conocidos" value={richOwnership.data?.known_owner_count}/><Detail label="Originalidad" value={richOwnership.data?.originality_status}/><Detail label="Documento" value={richDocumentation.data?.document_type}/><Detail label="Llaves" value={richDocumentation.data?.keys_count}/><Detail label="Seguro" value={richDocumentation.data?.insurance_current}/><Detail label="Historial de servicio" value={richDocumentation.data?.service_history_level}/></dl><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{[["Equipment",richEquipment.data],["Mods",richMods.data],["Flaws",richFlaws.data],["Servicios",richService.data],["Videos",richVideos.data]].map(([label,items])=><div key={String(label)} className="border p-3"><p className="text-xs font-bold uppercase text-stone-500">{String(label)}</p><p className="mt-1 text-2xl font-black">{Array.isArray(items)?items.length:0}</p></div>)}</div></section>
       <section className="mt-10 border-t pt-7">
         <h2 className="text-2xl font-black">Decisiones</h2>
         {(decisions.data ?? []).length ? <ol className="mt-4 space-y-3">{(decisions.data ?? []).map((item) => { const reviewer = item.reviewer as unknown as { display_name: string | null; username: string | null } | null; return <li key={item.id} className="border-l-4 border-accent pl-4"><strong>{item.decision === "approved" ? "Aprobado y publicado" : LISTING_STATUS_LABELS[item.decision as ListingStatus]}</strong>{item.message ? <p className="mt-1 whitespace-pre-wrap">{item.message}</p> : null}<p className="mt-1 text-sm text-stone-500">{reviewer?.username ? `@${reviewer.username}` : reviewer?.display_name || "Staff"} · {formatDate(item.created_at)}</p></li>; })}</ol> : <p className="mt-3 text-stone-600">Sin decisiones todavía.</p>}

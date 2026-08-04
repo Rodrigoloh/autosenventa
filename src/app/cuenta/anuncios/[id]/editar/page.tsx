@@ -5,6 +5,7 @@ import { ListingForm } from "@/components/listing-form";
 import { ListingPhotoManager } from "@/components/listing-photo-manager";
 import { ListingPhotoUploader } from "@/components/listing-photo-uploader";
 import { ListingSubmissionPanel } from "@/components/listing-submission-panel";
+import { RichListingForm } from "@/components/rich-listing-form";
 import { PendingPhotoUploads } from "@/components/pending-photo-uploads";
 import { requireUser } from "@/lib/auth";
 import { LISTING_STATUS_LABELS } from "@/lib/listing-display";
@@ -37,12 +38,20 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
     );
   }
 
-  const [{ data: categories }, { data: brands }, { data: models }, photos, pendingUploads] = await Promise.all([
+  const [{ data: categories }, { data: brands }, { data: models }, photos, pendingUploads, ownership, documentation, equipment, modifications, flaws, serviceRecords, includedItems, videos] = await Promise.all([
     supabase.from("categories").select("id,name").eq("active", true).order("name"),
     supabase.from("brands").select("id,name").eq("active", true).order("name"),
     supabase.from("models").select("id,brand_id,name").eq("active", true).order("name"),
     getPrivateListingPhotos(id, viewer.id),
     getPendingListingPhotoUploads(id, viewer.id),
+    supabase.from("listing_ownership_details").select("*").eq("listing_id",id).maybeSingle(),
+    supabase.from("listing_documentation").select("*").eq("listing_id",id).maybeSingle(),
+    supabase.from("listing_equipment").select("*").eq("listing_id",id).order("sort_order"),
+    supabase.from("listing_modifications").select("*").eq("listing_id",id).order("sort_order"),
+    supabase.from("listing_flaws").select("*").eq("listing_id",id).order("sort_order"),
+    supabase.from("listing_service_records").select("*").eq("listing_id",id).order("sort_order"),
+    supabase.from("listing_included_items").select("*").eq("listing_id",id).order("sort_order"),
+    supabase.from("listing_videos").select("*").eq("listing_id",id).order("sort_order"),
   ]);
   const readiness = status === "draft" || status === "changes_requested"
     ? await supabase.rpc("get_listing_submission_readiness", { target_listing_id: id })
@@ -70,6 +79,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
       </div>
       {status === "draft" || status === "changes_requested" ? <ListingSubmissionPanel listingId={id} readinessCodes={(readiness.data as string[] | null) ?? []} /> : null}
       <ListingForm listing={data} categories={categories ?? []} brands={brands ?? []} models={models ?? []} />
+      <RichListingForm listingId={id} data={{ownership:ownership.data,documentation:documentation.data,equipment:equipment.data??[],modifications:modifications.data??[],flaws:flaws.data??[],serviceRecords:serviceRecords.data??[],includedItems:includedItems.data??[],videos:videos.data??[]}} />
     </section>
   );
 }
