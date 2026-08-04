@@ -38,12 +38,15 @@ test("marketplace público descubre únicamente publicaciones y conserva el fluj
   const paused = inserted.data!.find((item) => item.status === "paused")!;
 
   try {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     await expect(page.getByRole("link", { name: "driven-mx", exact: true })).toBeVisible();
     await expect(page.locator(`[data-listing-id="${featured.id}"]`).first()).toBeVisible();
     await expect(page.locator(`[data-listing-id="${searchable.id}"]`).first()).toBeVisible();
     await expect(page.locator(`[data-listing-id="${paused.id}"]`)).toHaveCount(0);
     await expect(page.getByText("Paused Invisible")).toHaveCount(0);
+    const firstHomeCard = await page.locator("[data-listing-id]").first().boundingBox();
+    expect(firstHomeCard?.y).toBeLessThan(780);
 
     await page.goto("/autos");
     await expect(page.locator(`[data-listing-id="${featured.id}"]`)).toHaveCount(1);

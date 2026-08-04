@@ -13,17 +13,21 @@ export default async function HomePage() {
   const selection = (featured.length ? featured : listings).slice(0, 8);
   return (
     <main className="public-shell min-w-0 flex-1">
-      {highlights.length ? <FeaturedListings listings={highlights} /> : <section className="relative grid min-h-[30rem] place-items-center overflow-hidden px-5 text-center"><div className="driven-halftone absolute inset-y-0 right-0 w-1/3 opacity-15" /><div className="relative"><p className="editorial-kicker">Selección driven-mx</p><h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Los próximos autos están por llegar.</h1></div></section>}
-      <section className="border-y public-rule public-surface px-5 py-8 lg:px-8">
-        <form action="/autos" role="search" className="mx-auto grid max-w-7xl gap-4 md:grid-cols-[1fr_1fr_2fr_auto] md:items-end">
-          <label className="text-[10px] font-bold uppercase tracking-[0.17em] text-zinc-500">Marca<input name="marca" placeholder="Porsche" className="public-field mt-2 h-12 w-full px-4 text-sm font-normal normal-case tracking-normal placeholder:text-zinc-600" /></label>
-          <label className="text-[10px] font-bold uppercase tracking-[0.17em] text-zinc-500">Modelo<input name="modelo" placeholder="911" className="public-field mt-2 h-12 w-full px-4 text-sm font-normal normal-case tracking-normal placeholder:text-zinc-600" /></label>
-          <label className="text-[10px] font-bold uppercase tracking-[0.17em] text-zinc-500">Palabra clave<input name="q" placeholder="Convertible manual en Guadalajara" className="public-field mt-2 h-12 w-full px-4 text-sm font-normal normal-case tracking-normal placeholder:text-zinc-600" /></label>
-          <button className="h-12 bg-orange-600 px-7 text-sm font-bold text-white hover:bg-orange-500">Explorar autos</button>
-        </form>
+      {highlights.length ? <FeaturedListings listings={highlights} /> : <section className="grid min-h-[22rem] place-items-center px-5 text-center"><div><p className="editorial-kicker">Selección driven-mx</p><h1 className="mt-2 text-2xl font-semibold tracking-tight">Los próximos autos están por llegar.</h1></div></section>}
+      <section className="px-5 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 border-b public-rule py-4 lg:flex-row lg:items-center">
+          <h2 className="shrink-0 text-sm font-bold text-zinc-100">Explorar autos</h2>
+          <form action="/autos" role="search" className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]">
+            <label className="sr-only" htmlFor="home-brand">Marca</label><input id="home-brand" name="marca" placeholder="Marca" className="public-field h-9 min-w-0 px-3 text-xs placeholder:text-zinc-600" />
+            <label className="sr-only" htmlFor="home-model">Modelo</label><input id="home-model" name="modelo" placeholder="Modelo" className="public-field h-9 min-w-0 px-3 text-xs placeholder:text-zinc-600" />
+            <label className="sr-only" htmlFor="home-keyword">Año o palabra clave</label><input id="home-keyword" name="q" placeholder="Año o palabra clave" className="public-field h-9 min-w-0 px-3 text-xs placeholder:text-zinc-600" />
+            <button className="h-9 bg-orange-600 px-5 text-[11px] font-bold text-white transition-colors hover:bg-orange-500">Ver autos</button>
+          </form>
+          <nav aria-label="Orden rápido" className="flex shrink-0 items-center gap-3 text-[10px] font-semibold text-zinc-500"><Link href="/autos" className="text-zinc-200 hover:text-white">Recientes</Link><Link href="/autos?orden=price-asc" className="hover:text-white">Precio</Link><Link href="/autos?orden=mileage" className="hover:text-white">Kilometraje</Link></nav>
+        </div>
       </section>
-      {selection.length ? <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-24"><div className="mb-9 flex items-end justify-between gap-4"><div><p className="editorial-kicker">Curaduría</p><h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Destacados / selección</h2></div><Link href="/autos?orden=newest" className="text-xs font-semibold text-zinc-400 transition-colors hover:text-orange-400">Ver todos&nbsp; ↗</Link></div><PublicListingGrid listings={selection} /></section> : null}
-      <section className="mx-auto max-w-7xl border-t public-rule px-5 py-20 lg:px-8 lg:py-24"><div className="mb-9 flex items-end justify-between gap-4"><div><p className="editorial-kicker !text-orange-500">Recién publicados</p><h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Nuevas publicaciones</h2></div><Link href="/autos" className="text-xs font-semibold text-zinc-400 transition-colors hover:text-orange-400">Explorar catálogo&nbsp; →</Link></div>{listings.length ? <PublicListingGrid listings={listings.slice(0, 8)} /> : <p className="border border-dashed border-white/15 p-8 text-zinc-400">Aún no hay publicaciones disponibles.</p>}</section>
+      {selection.length ? <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-14"><div className="mb-5 flex items-end justify-between gap-4"><div><p className="editorial-kicker">Curaduría</p><h2 className="mt-1 text-xl font-bold tracking-tight">Destacados / selección</h2></div><Link href="/autos?orden=newest" className="text-[11px] font-semibold text-zinc-500 transition-colors hover:text-white">Ver todos&nbsp; →</Link></div><PublicListingGrid listings={selection} /></section> : null}
+      <section className="mx-auto max-w-7xl border-t public-rule px-5 py-12 lg:px-8 lg:py-14"><div className="mb-5 flex items-end justify-between gap-4"><div><p className="editorial-kicker !text-orange-500">Recién publicados</p><h2 className="mt-1 text-xl font-bold tracking-tight">Nuevas publicaciones</h2></div><Link href="/autos" className="text-[11px] font-semibold text-zinc-500 transition-colors hover:text-white">Explorar catálogo&nbsp; →</Link></div>{listings.length ? <PublicListingGrid listings={listings.slice(0, 8)} /> : <p className="border border-dashed border-white/15 p-6 text-sm text-zinc-500">Aún no hay publicaciones disponibles.</p>}</section>
     </main>
   );
 }

@@ -48,23 +48,11 @@ button, select { cursor: pointer; }
 .public-field:focus { border-color: var(--driven-green); outline: 1px solid var(--driven-green); outline-offset: 1px; }
 
 .driven-wordmark {
-  position: relative;
   display: inline-block;
-  isolation: isolate;
   color: var(--driven-paper);
   font-weight: 900;
-  letter-spacing: -0.075em;
-  line-height: .82;
-}
-.driven-wordmark::after {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  content: attr(data-wordmark);
-  transform: translate(3px, 3px);
-  background: radial-gradient(circle, var(--driven-green) 0 1px, transparent 1.15px) 0 0 / 3.5px 3.5px;
-  background-clip: text;
-  color: transparent;
+  letter-spacing: -0.06em;
+  line-height: .9;
 }
 
 .driven-halftone {
